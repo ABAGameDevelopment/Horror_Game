@@ -22,6 +22,9 @@ public class PlayerController : MonoBehaviour
     private float verticalVelocity;
     private float cameraPitch;
 
+    [SerializeField] private int maxJumps = 2;
+    private int jumpsUsed = 0;
+
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
@@ -48,9 +51,15 @@ public class PlayerController : MonoBehaviour
 
     public void OnJump(InputValue value)
     {
-        if (value.isPressed && controller.isGrounded)
+        if (!value.isPressed)
+        {
+            return;
+        }
+
+        if (controller.isGrounded || jumpsUsed < maxJumps)
         {
             verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            jumpsUsed++;
         }
     }
 
@@ -59,6 +68,7 @@ public class PlayerController : MonoBehaviour
         if (controller.isGrounded && verticalVelocity < 0)
         {
             verticalVelocity = -2f;
+            jumpsUsed = 0;
         }
 
         Vector3 movement =

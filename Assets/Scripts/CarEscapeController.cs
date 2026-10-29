@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -66,7 +65,7 @@ public class CarEscapeController : MonoBehaviour
             if (gateGo != null) portonSalida = gateGo.transform;
         }
 
-        ConstruirCofreYMotorReal();
+        AsegurarComponentesCofreYMotor();
     }
 
     private bool TeclaInteraccionPresionada()
@@ -93,176 +92,177 @@ public class CarEscapeController : MonoBehaviour
         return false;
     }
 
-    /// <summary>
-    /// Separa dinámicamente la tapa real del cofre de la carrocería del auto para que se abra físicamente
-    /// y coloca el motor detallado debajo del cofre.
-    /// </summary>
     public void AsegurarComponentesCofreYMotor()
     {
         ConstruirCofreYMotorReal();
     }
 
+    /// <summary>
+    /// Construye el cofre 3D articulado de forma aerodinámica y el compartimento de motor
+    /// preservando intactos los colores y materiales originales del vehículo.
+    /// </summary>
     public void ConstruirCofreYMotorReal()
     {
-        // 1. Limpiar versiones previas de pruebas si existían
+        // 1. Limpiar objetos antiguos si existen
         Transform viejoPivote = transform.Find("Pivote_Cofre");
         if (viejoPivote != null) Destroy(viejoPivote.gameObject);
 
         Transform viejoMotor = transform.Find("Compartimento_Motor");
         if (viejoMotor != null) Destroy(viejoMotor.gameObject);
 
-        // 2. Localizar el MeshFilter de Body
-        MeshFilter bodyMf = null;
-        MeshRenderer bodyMr = null;
-        foreach (var mf in GetComponentsInChildren<MeshFilter>(true))
+        // 2. Obtener el material de pintura original del auto para que el cofre sea 100% idéntico
+        Material matAuto = null;
+        MeshRenderer bodyMr = GetComponentInChildren<MeshRenderer>();
+        if (bodyMr != null && bodyMr.sharedMaterial != null)
         {
-            if (mf.gameObject.name.ToLower().Contains("body"))
-            {
-                bodyMf = mf;
-                bodyMr = mf.GetComponent<MeshRenderer>();
-                break;
-            }
+            matAuto = bodyMr.sharedMaterial;
         }
 
-        if (bodyMf == null || bodyMf.sharedMesh == null)
-        {
-            Debug.LogWarning("[CarEscape] No se encontró MeshFilter de Body");
-            return;
-        }
+        // 3. Crear el Punto de Giro / Bisagra en la base del parabrisas
+        GameObject pivotGo = new GameObject("Pivote_Cofre");
+        pivotGo.transform.SetParent(transform, false);
+        pivotGo.transform.localPosition = new Vector3(0f, 0.81f, 0.58f);
+        pivoteCofre = pivotGo.transform;
 
-        Mesh srcMesh = bodyMf.mesh;
-        Bounds b = srcMesh.bounds;
+        // 4. Construir la tapa del cofre con forma de auto deportivo
+        // Base aerodinámica principal
+        GameObject hoodPanel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        hoodPanel.name = "Tapa_Cofre_Panel";
+        hoodPanel.transform.SetParent(pivoteCofre, false);
+        hoodPanel.transform.localPosition = new Vector3(0f, -0.04f, 0.76f);
+        hoodPanel.transform.localRotation = Quaternion.Euler(-5.5f, 0f, 0f);
+        hoodPanel.transform.localScale = new Vector3(1.72f, 0.05f, 1.52f);
+        if (matAuto != null) hoodPanel.GetComponent<Renderer>().sharedMaterial = matAuto;
+        else hoodPanel.GetComponent<Renderer>().material.color = new Color(0.9f, 0.08f, 0.06f);
+        Destroy(hoodPanel.GetComponent<Collider>());
 
-        Vector3[] verts = srcMesh.vertices;
-        Vector3[] normals = srcMesh.normals;
-        Vector2[] uvs = srcMesh.uv;
+        // Franjas / toma de aire central elevada (Power Bulge deportivo negro)
+        GameObject scoop = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        scoop.name = "Toma_Aire_Bulge";
+        scoop.transform.SetParent(hoodPanel.transform, false);
+        scoop.transform.localPosition = new Vector3(0f, 0.55f, 0.05f);
+        scoop.transform.localScale = new Vector3(0.55f, 0.7f, 0.85f);
+        Material matNegro = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        matNegro.color = new Color(0.08f, 0.08f, 0.1f);
+        scoop.GetComponent<Renderer>().material = matNegro;
+        Destroy(scoop.GetComponent<Collider>());
 
-        // Rango de la tapa del cofre en el espacio local del auto
-        float zMin = b.center.z + b.extents.z * 0.15f;
-        float zMax = b.center.z + b.extents.z * 0.90f;
-        float xMax = b.extents.x * 0.85f;
-        float yMin = b.min.y + b.size.y * 0.38f;
+        // Bisel frontal de la trompa
+        GameObject noseLip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        noseLip.name = "Bisel_Frontal";
+        noseLip.transform.SetParent(hoodPanel.transform, false);
+        noseLip.transform.localPosition = new Vector3(0f, -0.2f, 0.52f);
+        noseLip.transform.localRotation = Quaternion.Euler(30f, 0f, 0f);
+        noseLip.transform.localScale = new Vector3(0.98f, 0.8f, 0.15f);
+        if (matAuto != null) noseLip.GetComponent<Renderer>().sharedMaterial = matAuto;
+        else noseLip.GetComponent<Renderer>().material.color = new Color(0.9f, 0.08f, 0.06f);
+        Destroy(noseLip.GetComponent<Collider>());
 
-        List<int> bodyTris = new List<int>();
-        List<int> hoodTris = new List<int>();
-
-        for (int s = 0; s < srcMesh.subMeshCount; s++)
-        {
-            int[] tris = srcMesh.GetTriangles(s);
-            for (int i = 0; i < tris.Length; i += 3)
-            {
-                int i0 = tris[i];
-                int i1 = tris[i + 1];
-                int i2 = tris[i + 2];
-
-                Vector3 c = (verts[i0] + verts[i1] + verts[i2]) / 3f;
-
-                // Es triángulo del cofre si está en la parte delantera superior
-                bool esCofre = (c.z >= zMin && c.z <= zMax) &&
-                               (Mathf.Abs(c.x) <= xMax) &&
-                               (c.y >= yMin);
-
-                if (esCofre)
-                {
-                    hoodTris.Add(i0);
-                    hoodTris.Add(i1);
-                    hoodTris.Add(i2);
-                }
-                else
-                {
-                    bodyTris.Add(i0);
-                    bodyTris.Add(i1);
-                    bodyTris.Add(i2);
-                }
-            }
-        }
-
-        if (hoodTris.Count > 0)
-        {
-            // Modificar la carrocería para quitar la tapa del cofre
-            Mesh newBody = Instantiate(srcMesh);
-            newBody.name = "Body_SinCofre";
-            newBody.triangles = bodyTris.ToArray();
-            newBody.RecalculateBounds();
-            bodyMf.mesh = newBody;
-
-            // Crear el objeto del cofre articulado
-            GameObject pivotGo = new GameObject("Pivote_Cofre");
-            pivotGo.transform.SetParent(bodyMf.transform, false);
-
-            Vector3 pivotLocalPos = new Vector3(0f, yMin + (b.max.y - yMin) * 0.40f, zMin);
-            pivotGo.transform.localPosition = pivotLocalPos;
-            pivoteCofre = pivotGo.transform;
-
-            GameObject hoodGo = new GameObject("Tapa_Cofre_Original");
-            hoodGo.transform.SetParent(pivotGo.transform, false);
-            hoodGo.transform.localPosition = -pivotLocalPos;
-
-            Mesh hoodMesh = Instantiate(srcMesh);
-            hoodMesh.name = "Tapa_Cofre_Malla";
-            hoodMesh.triangles = hoodTris.ToArray();
-            hoodMesh.RecalculateBounds();
-
-            MeshFilter hmf = hoodGo.AddComponent<MeshFilter>();
-            hmf.mesh = hoodMesh;
-
-            MeshRenderer hmr = hoodGo.AddComponent<MeshRenderer>();
-            hmr.sharedMaterials = bodyMr.sharedMaterials;
-
-            Debug.Log("<color=green>[CarEscape]</color> ¡Cofre original separado exitosamente! Ya se puede abrir.");
-        }
-
-        // 3. Compartimento de motor debajo del cofre
+        // 5. Compartimento de Motor Detallado (revelado al levantar el cofre)
         GameObject engineBay = new GameObject("Compartimento_Motor");
         engineBay.transform.SetParent(transform, false);
-        engineBay.transform.localPosition = new Vector3(0f, 0.58f, 1.4f);
+        engineBay.transform.localPosition = new Vector3(0f, 0.68f, 1.35f);
 
-        // Bloque del motor V8 central
+        // Fondo oscuro del vano motor
+        GameObject bayFloor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        bayFloor.name = "Fondo_Vano_Motor";
+        bayFloor.transform.SetParent(engineBay.transform, false);
+        bayFloor.transform.localPosition = new Vector3(0f, -0.05f, 0f);
+        bayFloor.transform.localScale = new Vector3(1.5f, 0.04f, 1.3f);
+        bayFloor.GetComponent<Renderer>().material.color = new Color(0.12f, 0.12f, 0.14f);
+        Destroy(bayFloor.GetComponent<Collider>());
+
+        // Bloque de motor V8
         GameObject block = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        block.name = "Bloque_Motor";
+        block.name = "Bloque_Motor_V8";
         block.transform.SetParent(engineBay.transform, false);
-        block.transform.localPosition = new Vector3(0f, 0f, 0f);
-        block.transform.localScale = new Vector3(0.85f, 0.45f, 0.95f);
-        block.GetComponent<Renderer>().material.color = new Color(0.22f, 0.24f, 0.28f);
+        block.transform.localPosition = new Vector3(0f, 0.08f, 0f);
+        block.transform.localScale = new Vector3(0.72f, 0.32f, 0.82f);
+        block.GetComponent<Renderer>().material.color = new Color(0.25f, 0.28f, 0.32f);
         Destroy(block.GetComponent<Collider>());
 
-        // Filtro / toma de aire
-        GameObject intake = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        intake.name = "Filtro_Aire";
-        intake.transform.SetParent(engineBay.transform, false);
-        intake.transform.localPosition = new Vector3(0f, 0.25f, -0.05f);
-        intake.transform.localScale = new Vector3(0.48f, 0.08f, 0.48f);
-        intake.GetComponent<Renderer>().material.color = new Color(0.85f, 0.85f, 0.9f);
-        Destroy(intake.GetComponent<Collider>());
+        // Cubiertas de válvulas cromadas V8 (izquierda y derecha)
+        GameObject valveL = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        valveL.name = "Cubierta_Valvulas_Izq";
+        valveL.transform.SetParent(engineBay.transform, false);
+        valveL.transform.localPosition = new Vector3(-0.25f, 0.26f, 0f);
+        valveL.transform.localRotation = Quaternion.Euler(0f, 0f, 25f);
+        valveL.transform.localScale = new Vector3(0.22f, 0.08f, 0.78f);
+        valveL.GetComponent<Renderer>().material.color = new Color(0.75f, 0.78f, 0.82f);
+        Destroy(valveL.GetComponent<Collider>());
 
-        // Bandeja de batería (lado izquierdo frontal)
+        GameObject valveR = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        valveR.name = "Cubierta_Valvulas_Der";
+        valveR.transform.SetParent(engineBay.transform, false);
+        valveR.transform.localPosition = new Vector3(0.25f, 0.26f, 0f);
+        valveR.transform.localRotation = Quaternion.Euler(0f, 0f, -25f);
+        valveR.transform.localScale = new Vector3(0.22f, 0.08f, 0.78f);
+        valveR.GetComponent<Renderer>().material.color = new Color(0.75f, 0.78f, 0.82f);
+        Destroy(valveR.GetComponent<Collider>());
+
+        // Filtro de aire cromado central
+        GameObject filter = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        filter.name = "Filtro_Aire_Cromado";
+        filter.transform.SetParent(engineBay.transform, false);
+        filter.transform.localPosition = new Vector3(0f, 0.28f, -0.06f);
+        filter.transform.localScale = new Vector3(0.42f, 0.07f, 0.42f);
+        filter.GetComponent<Renderer>().material.color = new Color(0.85f, 0.85f, 0.9f);
+        Destroy(filter.GetComponent<Collider>());
+
+        // Bandeja de soporte de batería (Lado izquierdo)
         GameObject tray = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        tray.name = "Bandeja_Bateria";
+        tray.name = "Soporte_Bateria";
         tray.transform.SetParent(engineBay.transform, false);
-        tray.transform.localPosition = new Vector3(-0.62f, -0.02f, 0.25f);
-        tray.transform.localScale = new Vector3(0.42f, 0.08f, 0.35f);
-        tray.GetComponent<Renderer>().material.color = new Color(0.12f, 0.12f, 0.15f);
+        tray.transform.localPosition = new Vector3(-0.55f, 0.06f, 0.26f);
+        tray.transform.localScale = new Vector3(0.36f, 0.06f, 0.32f);
+        tray.GetComponent<Renderer>().material.color = new Color(0.15f, 0.15f, 0.18f);
         Destroy(tray.GetComponent<Collider>());
 
-        // Modelo visual de la batería dentro del compartimento (inicialmente apagada)
-        GameObject batInCar = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        batInCar.name = "Bateria_Instalada";
-        batInCar.transform.SetParent(engineBay.transform, false);
-        batInCar.transform.localPosition = new Vector3(-0.62f, 0.14f, 0.25f);
-        batInCar.transform.localScale = new Vector3(0.36f, 0.24f, 0.28f);
-        batInCar.GetComponent<Renderer>().material.color = new Color(0.98f, 0.85f, 0.08f);
-        Destroy(batInCar.GetComponent<Collider>());
-        batInCar.SetActive(bateriaInstalada);
-        modeloBateriaMotor = batInCar;
+        // Batería 3D instalada (se enciende cuando el jugador la coloca)
+        GameObject bat = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        bat.name = "Bateria_Visual_Instalada";
+        bat.transform.SetParent(engineBay.transform, false);
+        bat.transform.localPosition = new Vector3(-0.55f, 0.18f, 0.26f);
+        bat.transform.localScale = new Vector3(0.32f, 0.20f, 0.26f);
+        bat.GetComponent<Renderer>().material.color = new Color(0.98f, 0.82f, 0.05f); // Amarillo institucional de batería
+        Destroy(bat.GetComponent<Collider>());
+        bat.SetActive(bateriaInstalada);
+        modeloBateriaMotor = bat;
 
-        // Tapón de llenado de aceite (lado derecho)
+        // Bornes de batería (rojo y negro)
+        GameObject bornePos = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        bornePos.name = "Borne_Positivo";
+        bornePos.transform.SetParent(bat.transform, false);
+        bornePos.transform.localPosition = new Vector3(0.25f, 0.55f, 0.25f);
+        bornePos.transform.localScale = new Vector3(0.2f, 0.2f, 0.2f);
+        bornePos.GetComponent<Renderer>().material.color = Color.red;
+        Destroy(bornePos.GetComponent<Collider>());
+
+        GameObject borneNeg = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        borneNeg.name = "Borne_Negativo";
+        borneNeg.transform.SetParent(bat.transform, false);
+        borneNeg.transform.localPosition = new Vector3(-0.25f, 0.55f, 0.25f);
+        borneNeg.transform.localScale = new Vector3(0.2f, 0.2f, 0.2f);
+        borneNeg.GetComponent<Renderer>().material.color = Color.black;
+        Destroy(borneNeg.GetComponent<Collider>());
+
+        // Tapón amarillo de aceite (Lado derecho del motor)
         GameObject oilCap = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        oilCap.name = "Tapon_Aceite";
+        oilCap.name = "Tapon_Aceite_Motor";
         oilCap.transform.SetParent(engineBay.transform, false);
-        oilCap.transform.localPosition = new Vector3(0.5f, 0.24f, 0.15f);
-        oilCap.transform.localScale = new Vector3(0.16f, 0.06f, 0.16f);
-        oilCap.GetComponent<Renderer>().material.color = new Color(0.95f, 0.78f, 0.05f);
+        oilCap.transform.localPosition = new Vector3(0.42f, 0.26f, 0.18f);
+        oilCap.transform.localScale = new Vector3(0.14f, 0.06f, 0.14f);
+        oilCap.GetComponent<Renderer>().material.color = new Color(0.95f, 0.75f, 0.05f);
         Destroy(oilCap.GetComponent<Collider>());
+
+        // Radiador frontal
+        GameObject rad = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        rad.name = "Radiador_Frontal";
+        rad.transform.SetParent(engineBay.transform, false);
+        rad.transform.localPosition = new Vector3(0f, 0.08f, 0.58f);
+        rad.transform.localScale = new Vector3(1.2f, 0.3f, 0.12f);
+        rad.GetComponent<Renderer>().material.color = new Color(0.18f, 0.2f, 0.22f);
+        Destroy(rad.GetComponent<Collider>());
     }
 
     private void Update()
@@ -392,9 +392,9 @@ public class CarEscapeController : MonoBehaviour
         if (pivoteCofre != null)
         {
             Quaternion rotInicial = pivoteCofre.localRotation;
-            Quaternion rotFinal = Quaternion.Euler(-55f, 0f, 0f);
+            Quaternion rotFinal = Quaternion.Euler(-60f, 0f, 0f);
 
-            float duracion = 0.7f;
+            float duracion = 0.75f;
             float t = 0f;
             while (t < duracion)
             {

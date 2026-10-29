@@ -1,0 +1,13 @@
+fileFormatVersion: 2
+guid: 4c5d821dda1b447fa95385b3ab6a78dc
+ModelImporter:
+  serializedVersion: 21100
+  internalIDToNameTable: []
+  externalObjects: {}
+  materials:
+    materialImportMode: 0
+    materialName: 0
+    materialSearch: 1
+    materialLocation: 1
+  meshes:
+    generateColliders: 1

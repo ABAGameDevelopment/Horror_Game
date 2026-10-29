@@ -62,7 +62,7 @@ public class ObjetivoUI : MonoBehaviour
         textoTitulo.maxVisibleCharacters = 0;
         textoDescripcion.maxVisibleCharacters = 0;
 
-        textoCasilla.text = "☐";
+        textoCasilla.text = "\u25A1";
         textoObjetivo.text = "Busca las llaves de la salida";
 
         grupoTutorialLinterna.alpha = 0f;

@@ -115,3 +115,20 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# OS / Editor temporary files
+.DS_Store
+*.DS_Store
+.vscode/
+
+# Paquetes de Assets pesados externos (Descargas locales que no van al repo)
+Assets/ObjectiveEnvironment_Assets/
+Assets/ObjectiveEnvironment_Assets.meta
+Assets/LoafbrrAssets/
+Assets/LoafbrrAssets.meta
+Assets/Forst/
+Assets/Forst.meta
+Assets/nappin/
+Assets/nappin.meta
+Assets/Day-Night Skyboxes/
+Assets/Day-Night Skyboxes.meta

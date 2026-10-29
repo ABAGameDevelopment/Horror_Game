@@ -97,6 +97,11 @@ public class CarEscapeController : MonoBehaviour
     /// Separa dinámicamente la tapa real del cofre de la carrocería del auto para que se abra físicamente
     /// y coloca el motor detallado debajo del cofre.
     /// </summary>
+    public void AsegurarComponentesCofreYMotor()
+    {
+        ConstruirCofreYMotorReal();
+    }
+
     public void ConstruirCofreYMotorReal()
     {
         // 1. Limpiar versiones previas de pruebas si existían

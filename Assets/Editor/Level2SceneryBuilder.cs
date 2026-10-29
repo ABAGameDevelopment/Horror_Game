@@ -36,6 +36,8 @@ public static class Level2SceneryBuilder
     private const string WoodCrateModelPath = "Assets/Models/Level2/WoodCrate.obj";
     private const string SecurityCameraModelPath = "Assets/Models/Level2/SecurityCamera.obj";
     private const string BoomBarrierModelPath = "Assets/Models/Level2/BoomBarrier.obj";
+    private const string CarHoodModelPath = "Assets/Models/Level2/CarHood.obj";
+    private const string CarEngineBayModelPath = "Assets/Models/Level2/CarEngineBay.obj";
 
     // Prefabs de Entorno
     private const string ConiferBarePath = "Assets/Packages/Tree/Conifers [BOTD]/Render Pipeline Support/URP/Prefabs/PF Conifer Bare BOTD URP.prefab";
@@ -615,8 +617,9 @@ public static class Level2SceneryBuilder
             car.transform.position = new Vector3(0f, 0.15f, -2f);
             car.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
 
-            // Script de escape que gestiona la reparación y el impacto
-            car.AddComponent<CarEscapeController>();
+            // Script de escape que gestiona la reparación, cofre interactivo e impacto
+            CarEscapeController escapeCtrl = car.AddComponent<CarEscapeController>();
+            escapeCtrl.AsegurarComponentesCofreYMotor();
 
             // Triggers interactivos
             // 1. Cofre / Motor (Batería y Aceite)

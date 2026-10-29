@@ -1,5 +1,5 @@
 using UnityEngine;
-using TMPro;
+using UnityEngine.InputSystem;
 
 public enum TipoItemLevel2
 {
@@ -14,7 +14,7 @@ public class Level2ItemPickup : MonoBehaviour
     [Header("Configuracion del Item")]
     [SerializeField] private TipoItemLevel2 tipoItem;
     [SerializeField] private string nombreItem = "Item";
-    [SerializeField] private float distanciaRecogida = 2.5f;
+    [SerializeField] private float distanciaRecogida = 2.8f;
 
     [Header("Efecto Visual")]
     [SerializeField] private bool rotarEnSitio = true;
@@ -22,6 +22,7 @@ public class Level2ItemPickup : MonoBehaviour
 
     private Transform playerTransform;
     private bool recogido = false;
+    private bool jugadorCerca = false;
 
     public TipoItemLevel2 Tipo => tipoItem;
     public string Nombre => nombreItem;
@@ -31,6 +32,30 @@ public class Level2ItemPickup : MonoBehaviour
         GameObject player = GameObject.FindWithTag("Player");
         if (player == null) player = GameObject.Find("Player");
         if (player != null) playerTransform = player.transform;
+    }
+
+    private bool TeclaInteraccionPresionada()
+    {
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.eKey.wasPressedThisFrame ||
+                Keyboard.current.fKey.wasPressedThisFrame ||
+                Keyboard.current.enterKey.wasPressedThisFrame)
+            {
+                return true;
+            }
+        }
+
+        if (Gamepad.current != null)
+        {
+            if (Gamepad.current.buttonSouth.wasPressedThisFrame ||
+                Gamepad.current.buttonWest.wasPressedThisFrame)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void Update()
@@ -51,10 +76,17 @@ public class Level2ItemPickup : MonoBehaviour
         }
 
         float distancia = Vector3.Distance(transform.position, playerTransform.position);
-        if (distancia <= distanciaRecogida)
+        jugadorCerca = (distancia <= distanciaRecogida);
+
+        if (jugadorCerca)
         {
-            // Permitir recoger con la tecla E o al acercarse
-            if (Input.GetKeyDown(KeyCode.E) || distancia < 1.3f)
+            if (CarEscapeController.Instance != null)
+            {
+                CarEscapeController.Instance.SetPromptExterno("[E] Recoger " + nombreItem);
+            }
+
+            // Permitir recoger con la tecla E/F o al pasar muy cerca
+            if (TeclaInteraccionPresionada() || distancia < 1.4f)
             {
                 Recoger();
             }
@@ -66,10 +98,9 @@ public class Level2ItemPickup : MonoBehaviour
         if (recogido) return;
         recogido = true;
 
-        CarEscapeController car = FindObjectOfType<CarEscapeController>();
-        if (car != null)
+        if (CarEscapeController.Instance != null)
         {
-            car.RegistrarItemRecogido(tipoItem);
+            CarEscapeController.Instance.RegistrarItemRecogido(tipoItem);
         }
 
         Debug.Log("<color=yellow>[Nivel 2]</color> ¡Item recogido!: " + nombreItem);

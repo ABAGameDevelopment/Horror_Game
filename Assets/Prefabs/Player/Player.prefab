@@ -358,6 +358,10 @@ MonoBehaviour:
   mouseSensitivity: 0.1
   controllerSensitivity: 100
   maxLookAngle: 80
+  luzLinterna: {fileID: 0}
+  linternaEncendida: 1
+  introNivel: {fileID: 0}
+  maxJumps: 2
 --- !u!1 &4407304705797863330
 GameObject:
   m_ObjectHideFlags: 0

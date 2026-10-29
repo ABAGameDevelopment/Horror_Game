@@ -1,5 +1,7 @@
+
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System;
 
 public class PlayerController : MonoBehaviour
 {
@@ -13,6 +15,16 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float mouseSensitivity = 0.2f;
     [SerializeField] private float controllerSensitivity = 100f;
     [SerializeField] private float maxLookAngle = 80f;
+    [Header("Linterna")]
+    [SerializeField] private Light luzLinterna;
+    [SerializeField] private bool linternaEncendida = true;
+
+    [Header("Intro")]
+    [SerializeField] private IntroNivel introNivel;
+
+    public event Action LinternaEncendidaPorPrimeraVez;
+
+    private bool yaSeNotificoLinternaEncendida;
 
     private CharacterController controller;
 
@@ -35,31 +47,82 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
+        // Bloquear el control durante la introduccion.
+        if (introNivel != null &&
+            !introNivel.IntroduccionTerminada)
+        {
+            moveInput = Vector2.zero;
+            lookInput = Vector2.zero;
+            return;
+        }
+
         HandleMovement();
         HandleLook();
     }
 
     public void OnMove(InputValue value)
     {
+        if (introNivel != null &&
+            !introNivel.IntroduccionTerminada)
+        {
+            moveInput = Vector2.zero;
+            return;
+        }
+
         moveInput = value.Get<Vector2>();
     }
 
     public void OnLook(InputValue value)
     {
+        if (introNivel != null &&
+            !introNivel.IntroduccionTerminada)
+        {
+            lookInput = Vector2.zero;
+            return;
+        }
+
         lookInput = value.Get<Vector2>();
     }
 
     public void OnJump(InputValue value)
     {
-        if (!value.isPressed)
+        if (introNivel != null &&
+            !introNivel.IntroduccionTerminada)
         {
             return;
         }
 
+        if (!value.isPressed)
+            return;
+
         if (controller.isGrounded || jumpsUsed < maxJumps)
         {
-            verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            verticalVelocity =
+                Mathf.Sqrt(jumpHeight * -2f * gravity);
+
             jumpsUsed++;
+        }
+    }
+
+    public void OnLight(InputValue value)
+    {
+        if (introNivel != null &&
+            !introNivel.IntroduccionTerminada)
+            return;
+
+        if (!value.isPressed)
+            return;
+
+        linternaEncendida = !linternaEncendida;
+
+        if (luzLinterna != null)
+            luzLinterna.enabled = linternaEncendida;
+
+        // Avisar solamente la primera vez que se enciende.
+        if (linternaEncendida && !yaSeNotificoLinternaEncendida)
+        {
+            yaSeNotificoLinternaEncendida = true;
+            LinternaEncendidaPorPrimeraVez?.Invoke();
         }
     }
 
@@ -78,7 +141,6 @@ public class PlayerController : MonoBehaviour
         movement *= speed;
 
         verticalVelocity += gravity * Time.deltaTime;
-
         movement.y = verticalVelocity;
 
         controller.Move(movement * Time.deltaTime);
@@ -89,10 +151,16 @@ public class PlayerController : MonoBehaviour
         float cameraX;
         float cameraY;
 
-        if (Gamepad.current != null && Gamepad.current.rightStick.ReadValue().magnitude > 0.1f)
+        if (Gamepad.current != null &&
+            Gamepad.current.rightStick.ReadValue().magnitude > 0.1f)
         {
-            cameraX = lookInput.x * controllerSensitivity * Time.deltaTime;
-            cameraY = lookInput.y * controllerSensitivity * Time.deltaTime;
+            cameraX = lookInput.x *
+                      controllerSensitivity *
+                      Time.deltaTime;
+
+            cameraY = lookInput.y *
+                      controllerSensitivity *
+                      Time.deltaTime;
         }
         else
         {

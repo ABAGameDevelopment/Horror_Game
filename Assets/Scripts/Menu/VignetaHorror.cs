@@ -27,6 +27,17 @@ public class VignetaHorror : MonoBehaviour
         imagen.color = colorBase;
     }
 
+    public void Configurar(float intensidad, float velocidad = -1f, float amplitud = -1f)
+    {
+        intensidadBase = Mathf.Clamp01(intensidad);
+        if (velocidad >= 0f) velocidadRespiracion = velocidad;
+        if (amplitud >= 0f) amplitudRespiracion = amplitud;
+        colorBase = new Color(0f, 0f, 0f, intensidadBase);
+
+        if (imagen != null)
+            imagen.color = colorBase;
+    }
+
     private void Update()
     {
         if (enPulso) return;

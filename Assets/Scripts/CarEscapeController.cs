@@ -25,11 +25,20 @@ public class CarEscapeController : MonoBehaviour
     [SerializeField] private Transform portonSalida;
     [SerializeField] private float velocidadEscape = 22f;
 
+    [Header("Sonidos de Auto Realistas")]
+    [SerializeField] private AudioClip sfxAbrirCofre;
+    [SerializeField] private AudioClip sfxCerrarCofre;
+    [SerializeField] private AudioClip sfxAbrirPuerta;
+    [SerializeField] private AudioClip sfxCerrarPuerta;
+    [SerializeField] private AudioClip sfxArranqueMotor;
+
     // Estado interno
     private bool animandoCofre = false;
     private bool escapeIniciado = false;
     private Transform playerTransform;
     private AudioSource audioSource;
+    private Quaternion rotacionCofreCerrado = Quaternion.identity;
+    private Quaternion rotacionCofreAbierto = Quaternion.Euler(-40f, 0f, 0f);
 
     // UI Minimalista
     private string promptActual = "";
@@ -59,11 +68,38 @@ public class CarEscapeController : MonoBehaviour
         Instance = this;
     }
 
+    public void ConfigurarAudios(AudioClip abrirCofre, AudioClip cerrarCofre, AudioClip abrirPuerta, AudioClip cerrarPuerta, AudioClip arranqueMotor)
+    {
+        sfxAbrirCofre = abrirCofre;
+        sfxCerrarCofre = cerrarCofre;
+        sfxAbrirPuerta = abrirPuerta;
+        sfxCerrarPuerta = cerrarPuerta;
+        sfxArranqueMotor = arranqueMotor;
+    }
+
     private void Start()
     {
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
-        audioSource.spatialBlend = 0.5f;
+        audioSource.playOnAwake = false;
+        audioSource.spatialBlend = 0.0f; // 2D directo para que el jugador siempre lo escuche alto y claro
+        audioSource.volume = 1.0f;
+
+#if UNITY_EDITOR
+        if (sfxAbrirCofre == null) sfxAbrirCofre = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/Level2/Cofre_Abrir.wav");
+        if (sfxCerrarCofre == null) sfxCerrarCofre = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/Level2/Cofre_Cerrar.wav");
+        if (sfxAbrirPuerta == null) sfxAbrirPuerta = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/Level2/Puerta_Abrir.wav");
+        if (sfxCerrarPuerta == null) sfxCerrarPuerta = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/Level2/Puerta_Cerrar.wav");
+        if (sfxArranqueMotor == null) sfxArranqueMotor = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/Level2/Motor_Arranque.wav");
+#endif
+
+        // Inmovilizar físicamente el auto para que el jugador no lo empuje al chocarlo
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.isKinematic = true;
+            rb.constraints = RigidbodyConstraints.FreezeAll;
+        }
 
         GameObject player = GameObject.FindWithTag("Player");
         if (player == null) player = GameObject.Find("Player");
@@ -76,6 +112,18 @@ public class CarEscapeController : MonoBehaviour
         }
 
         AsegurarComponentesCofreYMotor();
+
+        cofreAbierto = false;
+        if (pivoteCofre != null)
+        {
+            pivoteCofre.localRotation = rotacionCofreCerrado;
+            pivoteCofre.gameObject.SetActive(false);
+        }
+        Transform bay = transform.Find("Compartimento_Motor");
+        if (bay != null)
+        {
+            bay.gameObject.SetActive(false);
+        }
     }
 
     private bool TeclaInteraccionPresionada()
@@ -83,7 +131,6 @@ public class CarEscapeController : MonoBehaviour
         if (Keyboard.current != null)
         {
             if (Keyboard.current.eKey.wasPressedThisFrame ||
-                Keyboard.current.fKey.wasPressedThisFrame ||
                 Keyboard.current.enterKey.wasPressedThisFrame)
             {
                 return true;
@@ -107,66 +154,82 @@ public class CarEscapeController : MonoBehaviour
         ConstruirCofreYMotorReal();
     }
 
+    private static void SafeDestroy(Object obj)
+    {
+        if (obj == null) return;
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            DestroyImmediate(obj);
+            return;
+        }
+#endif
+        Destroy(obj);
+    }
+
+    private static Material CrearMaterialMotor(Color col, float smoothness = 0.5f, float metallic = 0.2f)
+    {
+        Shader litShader = Shader.Find("Universal Render Pipeline/Lit");
+        if (litShader == null) litShader = Shader.Find("Standard");
+        Material mat = new Material(litShader);
+        mat.color = col;
+        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", col);
+        if (mat.HasProperty("_Color")) mat.SetColor("_Color", col);
+        if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", smoothness);
+        if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", metallic);
+        return mat;
+    }
+
     /// <summary>
-    /// Construye el cofre 3D articulado de forma aerodinámica y el compartimento de motor
-    /// preservando intactos los colores y materiales originales del vehículo.
+    /// Construye el cofre 3D articulado de forma realista y el compartimento de motor
+    /// con aislante térmico interior y bisagra funcional.
     /// </summary>
     public void ConstruirCofreYMotorReal()
     {
         // 1. Limpiar objetos antiguos si existen
         Transform viejoPivote = transform.Find("Pivote_Cofre");
-        if (viejoPivote != null) Destroy(viejoPivote.gameObject);
+        if (viejoPivote != null) SafeDestroy(viejoPivote.gameObject);
 
         Transform viejoMotor = transform.Find("Compartimento_Motor");
-        if (viejoMotor != null) Destroy(viejoMotor.gameObject);
+        if (viejoMotor != null) SafeDestroy(viejoMotor.gameObject);
 
-        // 2. Obtener el material de pintura original del auto para que el cofre sea 100% idéntico
-        Material matAuto = null;
-        MeshRenderer bodyMr = GetComponentInChildren<MeshRenderer>();
-        if (bodyMr != null && bodyMr.sharedMaterial != null)
-        {
-            matAuto = bodyMr.sharedMaterial;
-        }
-
-        // 3. Crear el Punto de Giro / Bisagra en la base del parabrisas
+        // 2. Crear el Punto de Giro / Bisagra en la base del parabrisas
         GameObject pivotGo = new GameObject("Pivote_Cofre");
         pivotGo.transform.SetParent(transform, false);
         pivotGo.transform.localPosition = new Vector3(0f, 0.81f, 0.58f);
+        pivotGo.transform.localRotation = rotacionCofreCerrado;
         pivoteCofre = pivotGo.transform;
+        rotacionCofreCerrado = Quaternion.identity;
+        rotacionCofreAbierto = Quaternion.Euler(-40f, 0f, 0f);
 
-        // 4. Construir la tapa del cofre con forma de auto deportivo
-        // Base aerodinámica principal
+        // 3. Tapa del cofre exterior (Rojo deportivo brillante a juego con el auto)
         GameObject hoodPanel = GameObject.CreatePrimitive(PrimitiveType.Cube);
         hoodPanel.name = "Tapa_Cofre_Panel";
         hoodPanel.transform.SetParent(pivoteCofre, false);
         hoodPanel.transform.localPosition = new Vector3(0f, -0.04f, 0.76f);
         hoodPanel.transform.localRotation = Quaternion.Euler(-5.5f, 0f, 0f);
-        hoodPanel.transform.localScale = new Vector3(1.72f, 0.05f, 1.52f);
-        if (matAuto != null) hoodPanel.GetComponent<Renderer>().sharedMaterial = matAuto;
-        else hoodPanel.GetComponent<Renderer>().material.color = new Color(0.9f, 0.08f, 0.06f);
-        Destroy(hoodPanel.GetComponent<Collider>());
+        hoodPanel.transform.localScale = new Vector3(1.72f, 0.04f, 1.52f);
 
-        // Franjas / toma de aire central elevada (Power Bulge deportivo negro)
-        GameObject scoop = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        scoop.name = "Toma_Aire_Bulge";
-        scoop.transform.SetParent(hoodPanel.transform, false);
-        scoop.transform.localPosition = new Vector3(0f, 0.55f, 0.05f);
-        scoop.transform.localScale = new Vector3(0.55f, 0.7f, 0.85f);
-        Material matNegro = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-        matNegro.color = new Color(0.08f, 0.08f, 0.1f);
-        scoop.GetComponent<Renderer>().material = matNegro;
-        Destroy(scoop.GetComponent<Collider>());
+        Material matCofreRojo = null;
+#if UNITY_EDITOR
+        matCofreRojo = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Player/Red.mat");
+#endif
+        if (matCofreRojo == null)
+        {
+            matCofreRojo = CrearMaterialMotor(new Color(0.86f, 0.10f, 0.08f, 1f), 0.85f, 0.35f);
+        }
+        hoodPanel.GetComponent<Renderer>().sharedMaterial = matCofreRojo;
+        SafeDestroy(hoodPanel.GetComponent<Collider>());
 
-        // Bisel frontal de la trompa
+        // Bisel frontal aerodinámico (también en rojo deportivo)
         GameObject noseLip = GameObject.CreatePrimitive(PrimitiveType.Cube);
         noseLip.name = "Bisel_Frontal";
         noseLip.transform.SetParent(hoodPanel.transform, false);
         noseLip.transform.localPosition = new Vector3(0f, -0.2f, 0.52f);
         noseLip.transform.localRotation = Quaternion.Euler(30f, 0f, 0f);
         noseLip.transform.localScale = new Vector3(0.98f, 0.8f, 0.15f);
-        if (matAuto != null) noseLip.GetComponent<Renderer>().sharedMaterial = matAuto;
-        else noseLip.GetComponent<Renderer>().material.color = new Color(0.9f, 0.08f, 0.06f);
-        Destroy(noseLip.GetComponent<Collider>());
+        noseLip.GetComponent<Renderer>().sharedMaterial = matCofreRojo;
+        SafeDestroy(noseLip.GetComponent<Collider>());
 
         // 5. Compartimento de Motor Detallado (revelado al levantar el cofre)
         GameObject engineBay = new GameObject("Compartimento_Motor");
@@ -179,8 +242,8 @@ public class CarEscapeController : MonoBehaviour
         bayFloor.transform.SetParent(engineBay.transform, false);
         bayFloor.transform.localPosition = new Vector3(0f, -0.05f, 0f);
         bayFloor.transform.localScale = new Vector3(1.5f, 0.04f, 1.3f);
-        bayFloor.GetComponent<Renderer>().material.color = new Color(0.12f, 0.12f, 0.14f);
-        Destroy(bayFloor.GetComponent<Collider>());
+        bayFloor.GetComponent<Renderer>().sharedMaterial = CrearMaterialMotor(new Color(0.12f, 0.12f, 0.14f), 0.1f, 0f);
+        SafeDestroy(bayFloor.GetComponent<Collider>());
 
         // Bloque de motor V8
         GameObject block = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -188,18 +251,19 @@ public class CarEscapeController : MonoBehaviour
         block.transform.SetParent(engineBay.transform, false);
         block.transform.localPosition = new Vector3(0f, 0.08f, 0f);
         block.transform.localScale = new Vector3(0.72f, 0.32f, 0.82f);
-        block.GetComponent<Renderer>().material.color = new Color(0.25f, 0.28f, 0.32f);
-        Destroy(block.GetComponent<Collider>());
+        block.GetComponent<Renderer>().sharedMaterial = CrearMaterialMotor(new Color(0.25f, 0.28f, 0.32f), 0.6f, 0.5f);
+        SafeDestroy(block.GetComponent<Collider>());
 
-        // Cubiertas de válvulas cromadas V8 (izquierda y derecha)
+        // Cubiertas de válvulas cromadas V8
         GameObject valveL = GameObject.CreatePrimitive(PrimitiveType.Cube);
         valveL.name = "Cubierta_Valvulas_Izq";
         valveL.transform.SetParent(engineBay.transform, false);
         valveL.transform.localPosition = new Vector3(-0.25f, 0.26f, 0f);
         valveL.transform.localRotation = Quaternion.Euler(0f, 0f, 25f);
         valveL.transform.localScale = new Vector3(0.22f, 0.08f, 0.78f);
-        valveL.GetComponent<Renderer>().material.color = new Color(0.75f, 0.78f, 0.82f);
-        Destroy(valveL.GetComponent<Collider>());
+        Material matCromoValvulas = CrearMaterialMotor(new Color(0.75f, 0.78f, 0.82f), 0.85f, 0.8f);
+        valveL.GetComponent<Renderer>().sharedMaterial = matCromoValvulas;
+        SafeDestroy(valveL.GetComponent<Collider>());
 
         GameObject valveR = GameObject.CreatePrimitive(PrimitiveType.Cube);
         valveR.name = "Cubierta_Valvulas_Der";
@@ -207,8 +271,8 @@ public class CarEscapeController : MonoBehaviour
         valveR.transform.localPosition = new Vector3(0.25f, 0.26f, 0f);
         valveR.transform.localRotation = Quaternion.Euler(0f, 0f, -25f);
         valveR.transform.localScale = new Vector3(0.22f, 0.08f, 0.78f);
-        valveR.GetComponent<Renderer>().material.color = new Color(0.75f, 0.78f, 0.82f);
-        Destroy(valveR.GetComponent<Collider>());
+        valveR.GetComponent<Renderer>().sharedMaterial = matCromoValvulas;
+        SafeDestroy(valveR.GetComponent<Collider>());
 
         // Filtro de aire cromado central
         GameObject filter = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -216,63 +280,51 @@ public class CarEscapeController : MonoBehaviour
         filter.transform.SetParent(engineBay.transform, false);
         filter.transform.localPosition = new Vector3(0f, 0.28f, -0.06f);
         filter.transform.localScale = new Vector3(0.42f, 0.07f, 0.42f);
-        filter.GetComponent<Renderer>().material.color = new Color(0.85f, 0.85f, 0.9f);
-        Destroy(filter.GetComponent<Collider>());
+        filter.GetComponent<Renderer>().sharedMaterial = CrearMaterialMotor(new Color(0.85f, 0.85f, 0.9f), 0.9f, 0.85f);
+        SafeDestroy(filter.GetComponent<Collider>());
 
-        // Bandeja de soporte de batería (Lado izquierdo)
+        // Bandeja de soporte de batería
         GameObject tray = GameObject.CreatePrimitive(PrimitiveType.Cube);
         tray.name = "Soporte_Bateria";
         tray.transform.SetParent(engineBay.transform, false);
         tray.transform.localPosition = new Vector3(-0.55f, 0.06f, 0.26f);
         tray.transform.localScale = new Vector3(0.36f, 0.06f, 0.32f);
-        tray.GetComponent<Renderer>().material.color = new Color(0.15f, 0.15f, 0.18f);
-        Destroy(tray.GetComponent<Collider>());
+        tray.GetComponent<Renderer>().sharedMaterial = CrearMaterialMotor(new Color(0.15f, 0.15f, 0.18f), 0.2f, 0.1f);
+        SafeDestroy(tray.GetComponent<Collider>());
 
-        // Batería 3D instalada (se enciende cuando el jugador la coloca)
+        // Batería 3D instalada
         GameObject bat = GameObject.CreatePrimitive(PrimitiveType.Cube);
         bat.name = "Bateria_Visual_Instalada";
         bat.transform.SetParent(engineBay.transform, false);
         bat.transform.localPosition = new Vector3(-0.55f, 0.18f, 0.26f);
         bat.transform.localScale = new Vector3(0.32f, 0.20f, 0.26f);
-        bat.GetComponent<Renderer>().material.color = new Color(0.98f, 0.82f, 0.05f); // Amarillo institucional de batería
-        Destroy(bat.GetComponent<Collider>());
+        bat.GetComponent<Renderer>().sharedMaterial = CrearMaterialMotor(new Color(0.98f, 0.82f, 0.05f), 0.4f, 0f);
+        SafeDestroy(bat.GetComponent<Collider>());
         bat.SetActive(bateriaInstalada);
         modeloBateriaMotor = bat;
 
-        // Bornes de batería (rojo y negro)
-        GameObject bornePos = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        bornePos.name = "Borne_Positivo";
-        bornePos.transform.SetParent(bat.transform, false);
-        bornePos.transform.localPosition = new Vector3(0.25f, 0.55f, 0.25f);
-        bornePos.transform.localScale = new Vector3(0.2f, 0.2f, 0.2f);
-        bornePos.GetComponent<Renderer>().material.color = Color.red;
-        Destroy(bornePos.GetComponent<Collider>());
-
-        GameObject borneNeg = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        borneNeg.name = "Borne_Negativo";
-        borneNeg.transform.SetParent(bat.transform, false);
-        borneNeg.transform.localPosition = new Vector3(-0.25f, 0.55f, 0.25f);
-        borneNeg.transform.localScale = new Vector3(0.2f, 0.2f, 0.2f);
-        borneNeg.GetComponent<Renderer>().material.color = Color.black;
-        Destroy(borneNeg.GetComponent<Collider>());
-
-        // Tapón amarillo de aceite (Lado derecho del motor)
+        // Tapón de aceite
         GameObject oilCap = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         oilCap.name = "Tapon_Aceite_Motor";
         oilCap.transform.SetParent(engineBay.transform, false);
         oilCap.transform.localPosition = new Vector3(0.42f, 0.26f, 0.18f);
         oilCap.transform.localScale = new Vector3(0.14f, 0.06f, 0.14f);
-        oilCap.GetComponent<Renderer>().material.color = new Color(0.95f, 0.75f, 0.05f);
-        Destroy(oilCap.GetComponent<Collider>());
+        oilCap.GetComponent<Renderer>().sharedMaterial = CrearMaterialMotor(new Color(0.95f, 0.75f, 0.05f), 0.5f, 0.1f);
+        SafeDestroy(oilCap.GetComponent<Collider>());
 
-        // Radiador frontal
-        GameObject rad = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        rad.name = "Radiador_Frontal";
-        rad.transform.SetParent(engineBay.transform, false);
-        rad.transform.localPosition = new Vector3(0f, 0.08f, 0.58f);
-        rad.transform.localScale = new Vector3(1.2f, 0.3f, 0.12f);
-        rad.GetComponent<Renderer>().material.color = new Color(0.18f, 0.2f, 0.22f);
-        Destroy(rad.GetComponent<Collider>());
+        // Luz de trabajo cálida que ilumina el motor cuando el cofre se levanta
+        GameObject workLightGo = new GameObject("Luz_Vano_Motor");
+        workLightGo.transform.SetParent(engineBay.transform, false);
+        workLightGo.transform.localPosition = new Vector3(0f, 0.45f, 0f);
+        Light workLight = workLightGo.AddComponent<Light>();
+        workLight.type = LightType.Point;
+        workLight.range = 3.5f;
+        workLight.color = new Color(1.0f, 0.90f, 0.70f);
+        workLight.intensity = 3.0f;
+        workLight.shadows = LightShadows.None;
+
+        pivoteCofre.gameObject.SetActive(cofreAbierto);
+        engineBay.SetActive(cofreAbierto);
     }
 
     private void Update()
@@ -322,25 +374,38 @@ public class CarEscapeController : MonoBehaviour
             {
                 if (tieneBateria && !bateriaInstalada)
                 {
-                    promptActual = "[E] Instalar Batería en el motor";
+                    promptActual = "[E] Instalar Batería   |   [Q] Cerrar cofre";
                     if (teclaPresionada)
                     {
                         InstalarBateria();
                     }
+                    else if (Keyboard.current != null && Keyboard.current.qKey.wasPressedThisFrame && !animandoCofre)
+                    {
+                        CerrarCofre();
+                    }
                 }
                 else if (tieneAceite && !aceiteLlenado)
                 {
-                    promptActual = "[E] Rellenar Aceite de motor";
+                    promptActual = "[E] Rellenar Aceite de motor   |   [Q] Cerrar cofre";
                     if (teclaPresionada)
                     {
                         RellenarAceite();
+                    }
+                    else if (Keyboard.current != null && Keyboard.current.qKey.wasPressedThisFrame && !animandoCofre)
+                    {
+                        CerrarCofre();
                     }
                 }
                 else
                 {
                     string estadoBat = bateriaInstalada ? "<color=#2ecc71>Batería [✓]</color>" : "<color=#e74c3c>Falta Batería [✗]</color>";
                     string estadoAceite = aceiteLlenado ? "<color=#2ecc71>Aceite [✓]</color>" : "<color=#e74c3c>Falta Aceite [✗]</color>";
-                    promptActual = string.Format("Cofre abierto  |  {0}  |  {1}", estadoBat, estadoAceite);
+                    promptActual = string.Format("[E] Cerrar cofre   ({0} | {1})", estadoBat, estadoAceite);
+
+                    if (teclaPresionada && !animandoCofre)
+                    {
+                        CerrarCofre();
+                    }
                 }
             }
         }
@@ -396,30 +461,72 @@ public class CarEscapeController : MonoBehaviour
         StartCoroutine(AnimarAperturaCofre());
     }
 
+    public void CerrarCofre()
+    {
+        if (!cofreAbierto || animandoCofre) return;
+        StartCoroutine(AnimarCierreCofre());
+    }
+
     private IEnumerator AnimarAperturaCofre()
     {
         animandoCofre = true;
         cofreAbierto = true;
 
-        ReproducirSonidoProcedural(TipoSonido.AperturaMetalica);
-        MostrarMensajeFlotante("¡Cofre abierto! Revisa el compartimento del motor.", 4f);
+        if (pivoteCofre != null)
+        {
+            pivoteCofre.gameObject.SetActive(true);
+            pivoteCofre.localRotation = rotacionCofreCerrado;
+        }
+        Transform bay = transform.Find("Compartimento_Motor");
+        if (bay != null) bay.gameObject.SetActive(true);
+
+        ReproducirSonidoProcedural(TipoSonido.AperturaCofre);
+        MostrarMensajeFlotante("¡Cofre abierto! Revisa el compartimento del motor.", 3.5f);
 
         if (pivoteCofre != null)
         {
             Quaternion rotInicial = pivoteCofre.localRotation;
-            Quaternion rotFinal = Quaternion.Euler(-60f, 0f, 0f);
-
-            float duracion = 0.75f;
+            float duracion = 0.65f;
             float t = 0f;
             while (t < duracion)
             {
                 t += Time.deltaTime;
                 float factor = Mathf.SmoothStep(0f, 1f, t / duracion);
-                pivoteCofre.localRotation = Quaternion.Slerp(rotInicial, rotFinal, factor);
+                pivoteCofre.localRotation = Quaternion.Slerp(rotInicial, rotacionCofreAbierto, factor);
                 yield return null;
             }
-            pivoteCofre.localRotation = rotFinal;
+            pivoteCofre.localRotation = rotacionCofreAbierto;
         }
+
+        animandoCofre = false;
+    }
+
+    private IEnumerator AnimarCierreCofre()
+    {
+        animandoCofre = true;
+
+        if (pivoteCofre != null)
+        {
+            Quaternion rotInicial = pivoteCofre.localRotation;
+            float duracion = 0.45f;
+            float t = 0f;
+            while (t < duracion)
+            {
+                t += Time.deltaTime;
+                float factor = Mathf.SmoothStep(0f, 1f, t / duracion);
+                pivoteCofre.localRotation = Quaternion.Slerp(rotInicial, rotacionCofreCerrado, factor);
+                yield return null;
+            }
+            pivoteCofre.localRotation = rotacionCofreCerrado;
+            pivoteCofre.gameObject.SetActive(false);
+        }
+
+        Transform bay = transform.Find("Compartimento_Motor");
+        if (bay != null) bay.gameObject.SetActive(false);
+
+        cofreAbierto = false;
+        ReproducirSonidoProcedural(TipoSonido.CierreCofre);
+        MostrarMensajeFlotante("Cofre cerrado.", 2f);
 
         animandoCofre = false;
     }
@@ -438,8 +545,7 @@ public class CarEscapeController : MonoBehaviour
         }
 
         ReproducirSonidoProcedural(TipoSonido.ImpactoPesado);
-        MostrarMensajeFlotante("¡Batería instalada y conectada al alternador! [✓]", 3.5f);
-        VerificarListoParaArrancar();
+        MostrarMensajeFlotante("¡Batería conectada al sistema eléctrico! +150 PTS", 3.5f);
     }
 
     public void RellenarAceite()
@@ -451,8 +557,7 @@ public class CarEscapeController : MonoBehaviour
             LevelStateManager.Instance.AgregarPuntaje(150);
 
         ReproducirSonidoProcedural(TipoSonido.Liquido);
-        MostrarMensajeFlotante("¡Aceite de motor vertido en el depósito! [✓]", 3.5f);
-        VerificarListoParaArrancar();
+        MostrarMensajeFlotante("¡Aceite vertido en el motor! Nivel óptimo. +150 PTS", 3.5f);
     }
 
     public void CargarGasolina()
@@ -464,49 +569,55 @@ public class CarEscapeController : MonoBehaviour
             LevelStateManager.Instance.AgregarPuntaje(150);
 
         ReproducirSonidoProcedural(TipoSonido.Liquido);
-        MostrarMensajeFlotante("¡Tanque de gasolina abastecido al máximo! [✓]", 3.5f);
-        VerificarListoParaArrancar();
-    }
-
-    private void VerificarListoParaArrancar()
-    {
-        if (EstaListoParaArrancar)
-        {
-            MostrarMensajeFlotante("¡EL AUTO ESTÁ LISTO! Ve a la puerta del conductor [E] para escapar.", 5f);
-        }
+        MostrarMensajeFlotante("¡Tanque lleno de combustible! +150 PTS", 3.5f);
     }
 
     public void RegistrarItemRecogido(TipoItemLevel2 tipo)
     {
-        ReproducirSonidoProcedural(TipoSonido.CampanaItem);
-
-        if (LevelStateManager.Instance != null)
-            LevelStateManager.Instance.AgregarPuntaje(100);
-
         switch (tipo)
         {
             case TipoItemLevel2.Bateria:
                 tieneBateria = true;
-                MostrarMensajeFlotante("+ Recogiste: Batería de Auto (Llévala al cofre)", 3.5f);
                 break;
             case TipoItemLevel2.Aceite:
                 tieneAceite = true;
-                MostrarMensajeFlotante("+ Recogiste: Aceite de Motor (Llévalo al cofre)", 3.5f);
                 break;
             case TipoItemLevel2.Gasolina:
                 tieneGasolina = true;
-                MostrarMensajeFlotante("+ Recogiste: Bidón de Gasolina (Cárgalo en el tanque)", 3.5f);
                 break;
             case TipoItemLevel2.Llaves:
                 tieneLlaves = true;
-                MostrarMensajeFlotante("+ Recogiste: Llaves del Automóvil", 3.5f);
                 break;
         }
 
-        VerificarListoParaArrancar();
+        if (LevelStateManager.Instance != null)
+            LevelStateManager.Instance.AgregarPuntaje(100);
+
+        ReproducirSonidoProcedural(TipoSonido.CampanaItem);
+        MostrarMensajeFlotante("¡Objeto recogido: " + tipo + "! +100 PTS", 3.5f);
     }
 
-    public void MostrarMensajeFlotante(string mensaje, float duracion)
+    public void RegistrarItemRecogido(string nombreItem)
+    {
+        RecogerItem(nombreItem);
+    }
+
+    public void RecogerItem(string nombreItem)
+    {
+        string lower = nombreItem.ToLower();
+        if (lower.Contains("bateria") || lower.Contains("battery")) tieneBateria = true;
+        else if (lower.Contains("aceite") || lower.Contains("oil")) tieneAceite = true;
+        else if (lower.Contains("gasolina") || lower.Contains("gas")) tieneGasolina = true;
+        else if (lower.Contains("llave") || lower.Contains("key")) tieneLlaves = true;
+
+        if (LevelStateManager.Instance != null)
+            LevelStateManager.Instance.AgregarPuntaje(100);
+
+        ReproducirSonidoProcedural(TipoSonido.CampanaItem);
+        MostrarMensajeFlotante("¡Objeto recogido: " + nombreItem + "! +100 PTS", 3.5f);
+    }
+
+    public void MostrarMensajeFlotante(string mensaje, float duracion = 3.5f)
     {
         mensajeFlotante = mensaje;
         tiempoMensaje = duracion;
@@ -526,30 +637,42 @@ public class CarEscapeController : MonoBehaviour
         if (LevelStateManager.Instance != null)
             LevelStateManager.Instance.AgregarPuntaje(500);
 
-        MostrarMensajeFlotante("¡MOTOR EN MARCHA! Derribando portón de salida...", 5f);
-        ReproducirSonidoProcedural(TipoSonido.EscapeMotor);
-        StartCoroutine(SecuenciaEmbestirPorton());
+        StartCoroutine(SecuenciaCinematicaEscape());
     }
 
-    private IEnumerator SecuenciaEmbestirPorton()
+    private IEnumerator SecuenciaCinematicaEscape()
     {
+        // 1. Abrir puerta del conductor
+        ReproducirSonidoProcedural(TipoSonido.AperturaPuerta);
+        MostrarMensajeFlotante("Subiendo al vehículo...", 2f);
+        yield return new WaitForSeconds(0.4f);
+
+        // 2. Cerrar puerta con golpe sólido
+        ReproducirSonidoProcedural(TipoSonido.CierrePuerta);
         if (playerTransform != null)
         {
             playerTransform.gameObject.SetActive(false);
         }
+        yield return new WaitForSeconds(0.35f);
 
+        // 3. Encender el motor: Marcha de arranque y rugido V8
+        ReproducirSonidoProcedural(TipoSonido.ArranqueMotor);
+        MostrarMensajeFlotante("¡¡V8 RUGIENDO!! Derribando portón de salida...", 5f);
+        yield return new WaitForSeconds(0.8f);
+
+        // 4. Aceleración y embestida al portón
         float tiempo = 0f;
-        while (tiempo < 4f)
+        while (tiempo < 3.5f)
         {
             tiempo += Time.deltaTime;
             transform.position += transform.forward * velocidadEscape * Time.deltaTime;
 
-            if (portonSalida != null && Vector3.Distance(transform.position, portonSalida.position) < 5f)
+            if (portonSalida != null && Vector3.Distance(transform.position, portonSalida.position) < 5.5f)
             {
                 Rigidbody rb = portonSalida.GetComponent<Rigidbody>();
                 if (rb == null) rb = portonSalida.gameObject.AddComponent<Rigidbody>();
                 rb.mass = 40f;
-                rb.AddForce((transform.forward + Vector3.up * 0.4f) * 900f, ForceMode.Impulse);
+                rb.AddForce((transform.forward + Vector3.up * 0.4f) * 1100f, ForceMode.Impulse);
                 ReproducirSonidoProcedural(TipoSonido.ImpactoPesado);
             }
 
@@ -562,93 +685,56 @@ public class CarEscapeController : MonoBehaviour
             LevelStateManager.Instance.CompletarNivel();
     }
 
-    private void OnGUI()
+    #region Generacion de Sonidos Procedurales Realistas de Auto
+    private enum TipoSonido
     {
-        if (UsarUIExterna) return;
-        // 1. Mensaje de interacción en el centro de la pantalla
-        if (!string.IsNullOrEmpty(promptActual))
-        {
-            GUIStyle promptStyle = new GUIStyle(GUI.skin.box);
-            promptStyle.alignment = TextAnchor.MiddleCenter;
-            promptStyle.fontSize = 17;
-            promptStyle.normal.textColor = Color.white;
-            promptStyle.wordWrap = true;
-
-            float width = 460f;
-            float height = promptActual.Contains("\n") ? 100f : 45f;
-            float x = (Screen.width - width) / 2f;
-            float y = Screen.height * 0.72f;
-
-            GUI.color = new Color(0.05f, 0.05f, 0.08f, 0.88f);
-            GUI.Box(new Rect(x, y, width, height), GUIContent.none);
-            GUI.color = Color.white;
-
-            GUI.Label(new Rect(x + 10, y + 5, width - 20, height - 10), promptActual, promptStyle);
-        }
-
-        // 2. Notificación flotante superior
-        if (!string.IsNullOrEmpty(mensajeFlotante))
-        {
-            GUIStyle notifStyle = new GUIStyle(GUI.skin.box);
-            notifStyle.alignment = TextAnchor.MiddleCenter;
-            notifStyle.fontSize = 16;
-            notifStyle.fontStyle = FontStyle.Bold;
-            notifStyle.normal.textColor = new Color(1f, 0.85f, 0.2f);
-
-            float nWidth = 520f;
-            float nHeight = 42f;
-            float nx = (Screen.width - nWidth) / 2f;
-            float ny = 35f;
-
-            GUI.color = new Color(0.08f, 0.08f, 0.1f, 0.92f);
-            GUI.Box(new Rect(nx, ny, nWidth, nHeight), GUIContent.none);
-            GUI.color = Color.white;
-
-            GUI.Label(new Rect(nx + 10, ny + 2, nWidth - 20, nHeight - 4), mensajeFlotante, notifStyle);
-        }
-
-        // 3. Mini indicador de progreso en la esquina superior derecha
-        GUIStyle statusStyle = new GUIStyle(GUI.skin.label);
-        statusStyle.fontSize = 13;
-        statusStyle.fontStyle = FontStyle.Bold;
-        statusStyle.normal.textColor = new Color(0.85f, 0.85f, 0.9f);
-
-        float sWidth = 190f;
-        float sHeight = 110f;
-        float sx = Screen.width - sWidth - 20f;
-        float sy = 20f;
-
-        GUI.color = new Color(0f, 0f, 0f, 0.65f);
-        GUI.Box(new Rect(sx, sy, sWidth, sHeight), GUIContent.none);
-        GUI.color = Color.white;
-
-        string batMark = bateriaInstalada ? "<color=#2ecc71>[✓] Instalada</color>" : (tieneBateria ? "<color=#f39c12>[!] En mano</color>" : "<color=#e74c3c>[✗] Falta</color>");
-        string aceMark = aceiteLlenado ? "<color=#2ecc71>[✓] Vertido</color>" : (tieneAceite ? "<color=#f39c12>[!] En mano</color>" : "<color=#e74c3c>[✗] Falta</color>");
-        string gasMark = gasolinaCargada ? "<color=#2ecc71>[✓] Llena</color>" : (tieneGasolina ? "<color=#f39c12>[!] En mano</color>" : "<color=#e74c3c>[✗] Falta</color>");
-        string keyMark = tieneLlaves ? "<color=#2ecc71>[✓] Lista</color>" : "<color=#e74c3c>[✗] Falta</color>";
-
-        string statusText = string.Format("<b>ESTADO DEL AUTO</b>\nBatería: {0}\nAceite: {1}\nGasolina: {2}\nLlaves: {3}",
-            batMark, aceMark, gasMark, keyMark);
-
-        GUI.Label(new Rect(sx + 10, sy + 8, sWidth - 20, sHeight - 16), statusText, statusStyle);
+        AperturaCofre,
+        CierreCofre,
+        AperturaPuerta,
+        CierrePuerta,
+        ArranqueMotor,
+        ImpactoPesado,
+        Liquido,
+        CampanaItem
     }
-
-    #region Generacion de Sonidos Procedurales
-    private enum TipoSonido { AperturaMetalica, ImpactoPesado, Liquido, CampanaItem, EscapeMotor }
 
     private void ReproducirSonidoProcedural(TipoSonido tipo)
     {
-        if (audioSource == null) return;
-        AudioClip clip = GenerarClip(tipo);
-        if (clip != null) audioSource.PlayOneShot(clip, 0.85f);
+        AudioClip clip = null;
+        switch (tipo)
+        {
+            case TipoSonido.AperturaCofre: clip = sfxAbrirCofre; break;
+            case TipoSonido.CierreCofre: clip = sfxCerrarCofre; break;
+            case TipoSonido.AperturaPuerta: clip = sfxAbrirPuerta; break;
+            case TipoSonido.CierrePuerta: clip = sfxCerrarPuerta; break;
+            case TipoSonido.ArranqueMotor: clip = sfxArranqueMotor; break;
+        }
+
+        if (clip == null) clip = GenerarClip(tipo);
+
+        if (clip != null)
+        {
+            if (audioSource != null)
+            {
+                audioSource.PlayOneShot(clip, 1.0f);
+            }
+            else
+            {
+                AudioSource.PlayClipAtPoint(clip, transform.position, 1.0f);
+            }
+        }
     }
 
     private AudioClip GenerarClip(TipoSonido tipo)
     {
         int samplerate = 44100;
         float duration = 0.5f;
-        if (tipo == TipoSonido.EscapeMotor) duration = 3.5f;
-        else if (tipo == TipoSonido.AperturaMetalica) duration = 0.7f;
+
+        if (tipo == TipoSonido.ArranqueMotor) duration = 4.0f;
+        else if (tipo == TipoSonido.AperturaCofre) duration = 0.75f;
+        else if (tipo == TipoSonido.CierreCofre) duration = 0.65f;
+        else if (tipo == TipoSonido.AperturaPuerta) duration = 0.45f;
+        else if (tipo == TipoSonido.CierrePuerta) duration = 0.50f;
         else if (tipo == TipoSonido.Liquido) duration = 1.2f;
 
         int samplesCount = (int)(samplerate * duration);
@@ -661,32 +747,70 @@ public class CarEscapeController : MonoBehaviour
 
             switch (tipo)
             {
-                case TipoSonido.AperturaMetalica:
-                    float clunk = Mathf.Sin(2f * Mathf.PI * 140f * t) * Mathf.Exp(-t * 22f);
-                    float squeak = Mathf.Sin(2f * Mathf.PI * (520f + 300f * Mathf.Sin(t * 18f)) * t) * (1f - (t / duration));
-                    val = (clunk * 0.7f) + (squeak * 0.35f);
+                case TipoSonido.AperturaCofre:
+                    // Click de pestillo + chirrido de bisagra
+                    float latch = (t < 0.08f) ? Mathf.Sin(2f * Mathf.PI * 450f * t) * Mathf.Exp(-t * 80f) : 0f;
+                    float hinge = Mathf.Sin(2f * Mathf.PI * (280f + 160f * Mathf.Sin(t * 12f)) * t) * Mathf.Exp(-t * 4f);
+                    val = latch * 0.9f + hinge * 0.4f;
+                    break;
+
+                case TipoSonido.CierreCofre:
+                    // Golpe metálico pesado de lámina de cofre cerrando con fuerza
+                    float thud = Mathf.Sin(2f * Mathf.PI * 85f * t) * Mathf.Exp(-t * 16f);
+                    float metalClang = (Mathf.Sin(2f * Mathf.PI * 320f * t) + Mathf.Sin(2f * Mathf.PI * 680f * t) * 0.4f) * Mathf.Exp(-t * 28f);
+                    float rattle = (Random.value * 2f - 1f) * Mathf.Exp(-t * 35f) * 0.35f;
+                    val = thud * 1.1f + metalClang * 0.6f + rattle;
+                    break;
+
+                case TipoSonido.AperturaPuerta:
+                    // Manija destrabando + despegue de goma
+                    float handle = Mathf.Sin(2f * Mathf.PI * 650f * t) * Mathf.Exp(-t * 55f);
+                    float swing = (Random.value * 2f - 1f) * 0.15f * Mathf.Exp(-t * 6f);
+                    val = handle * 0.8f + swing;
+                    break;
+
+                case TipoSonido.CierrePuerta:
+                    // "Thunk" sólido y hermético de puerta automotriz
+                    float doorBass = Mathf.Sin(2f * Mathf.PI * 95f * t) * Mathf.Exp(-t * 20f);
+                    float doorLatch = Mathf.Sin(2f * Mathf.PI * 420f * t) * Mathf.Exp(-t * 45f);
+                    val = doorBass * 1.2f + doorLatch * 0.5f;
+                    break;
+
+                case TipoSonido.ArranqueMotor:
+                    if (t < 1.0f)
+                    {
+                        // 1. Motor de arranque girando (marcha: chug-chug-chug)
+                        float crankFreq = 16f; // Rpm del arranque
+                        float crankPulse = Mathf.Abs(Mathf.Sin(2f * Mathf.PI * crankFreq * t));
+                        float crankSound = Mathf.Sin(2f * Mathf.PI * 180f * t) * crankPulse;
+                        val = crankSound * 0.85f + (Random.value * 2f - 1f) * 0.2f;
+                    }
+                    else
+                    {
+                        // 2. Encendido y rugido V8 potente
+                        float tMotor = t - 1.0f;
+                        float rpm = 65f + Mathf.Sin(tMotor * 1.5f) * 35f + tMotor * 50f;
+                        float cyl1 = Mathf.Sin(2f * Mathf.PI * rpm * t);
+                        float cyl2 = Mathf.Sin(2f * Mathf.PI * (rpm * 2.1f) * t) * 0.6f;
+                        float rumble = (Random.value * 2f - 1f) * 0.35f;
+                        float roar = (cyl1 + cyl2 + rumble) * Mathf.Clamp01(tMotor * 4f);
+                        val = roar * 0.95f;
+                    }
                     break;
 
                 case TipoSonido.ImpactoPesado:
-                    val = (Mathf.Sin(2f * Mathf.PI * 85f * t) + Mathf.Sin(2f * Mathf.PI * 180f * t) * 0.5f) * Mathf.Exp(-t * 15f);
+                    val = (Mathf.Sin(2f * Mathf.PI * 80f * t) + (Random.value * 2f - 1f) * 0.6f) * Mathf.Exp(-t * 12f);
                     break;
 
                 case TipoSonido.Liquido:
-                    float noise = (Random.value * 2f - 1f) * 0.3f;
-                    float bubble = Mathf.Sin(2f * Mathf.PI * (340f + 160f * Mathf.Sin(t * 40f)) * t);
-                    val = (bubble * 0.4f + noise * 0.6f) * (1f - (t / duration));
+                    float bubble = Mathf.Sin(2f * Mathf.PI * (350f + 140f * Mathf.Sin(t * 35f)) * t);
+                    float splash = (Random.value * 2f - 1f) * 0.35f;
+                    val = (bubble * 0.5f + splash * 0.5f) * (1f - (t / duration));
                     break;
 
                 case TipoSonido.CampanaItem:
                     float freq = t < 0.12f ? 523.25f : 659.25f;
                     val = Mathf.Sin(2f * Mathf.PI * freq * t) * Mathf.Exp(-t * 6f);
-                    break;
-
-                case TipoSonido.EscapeMotor:
-                    float pitchRamp = 65f + (t / duration) * 220f;
-                    float engine = Mathf.Sin(2f * Mathf.PI * pitchRamp * t) + 0.4f * Mathf.Sin(2f * Mathf.PI * pitchRamp * 2f * t);
-                    float engineNoise = (Random.value * 2f - 1f) * 0.25f;
-                    val = (engine + engineNoise) * Mathf.Clamp01(t * 4f);
                     break;
             }
 

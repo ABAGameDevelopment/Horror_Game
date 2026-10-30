@@ -4,9 +4,9 @@ using UnityEngine.UI;
 
 public class HUDController : MonoBehaviour
 {
-    private static readonly Color ColorCompletado = new Color32(57, 211, 83, 255);
-    private static readonly Color ColorEnMano = new Color32(242, 199, 68, 255);
-    private static readonly Color ColorPendiente = new Color32(160, 166, 177, 255);
+    private static readonly Color ColorCompletado = new Color(0.35f, 0.85f, 0.35f, 1f);
+    private static readonly Color ColorEnMano = new Color(0.95f, 0.75f, 0.22f, 1f);
+    private static readonly Color ColorPendiente = new Color(0.60f, 0.60f, 0.60f, 1f);
 
     private GameObject panelPrompt;
     private RectTransform rectPrompt;
@@ -17,12 +17,16 @@ public class HUDController : MonoBehaviour
     private TextMeshProUGUI textPuntaje;
     private TextMeshProUGUI textTiempo;
     private TextMeshProUGUI textSubtitulo;
+    private TextMeshProUGUI textProgresoAuto;
     private RectTransform rellenoSalud;
+    private Image imagenSalud;
     private TextMeshProUGUI estadoBateria;
     private TextMeshProUGUI estadoAceite;
     private TextMeshProUGUI estadoGasolina;
     private TextMeshProUGUI estadoLlaves;
     private PlayerHealth saludJugador;
+    private VignetaHorror vignetaPantalla;
+    private float tiempoUltimoPulsoHerida;
 
     private void Start()
     {
@@ -49,88 +53,107 @@ public class HUDController : MonoBehaviour
     private void Construir()
     {
         Canvas canvas = RuntimeUI.CrearCanvas("HUD_Nivel2", 10);
+        vignetaPantalla = RuntimeUI.CrearVigneta(canvas.transform, 0.38f);
 
-        Image panelEstado = RuntimeUI.CrearPanel(canvas.transform, "PanelEstado", new Color(0.03f, 0.03f, 0.05f, 0.82f));
-        panelEstado.raycastTarget = false;
-        RuntimeUI.Anclar(panelEstado.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -24f), new Vector2(430f, 230f));
+        // -------------------------------------------------------------
+        // PANEL SUPERIOR IZQUIERDO: SALUD Y CONDICIÓN (Estilo Menú Principal)
+        // -------------------------------------------------------------
+        Image panelSalud = RuntimeUI.CrearPanelMarcoTerror(canvas.transform, "PanelSalud", new Vector2(420f, 150f), RuntimeUI.ColorPanelHud);
+        panelSalud.raycastTarget = false;
+        RuntimeUI.Anclar(panelSalud.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -24f), new Vector2(420f, 150f));
 
-        TextMeshProUGUI titulo = RuntimeUI.CrearTexto(panelEstado.transform, "Titulo", "ESTADO", 20f, TextAlignmentOptions.Left, new Color32(214, 24, 24, 255));
-        RuntimeUI.Anclar(titulo.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -12f), new Vector2(398f, 26f));
+        TextMeshProUGUI titSalud = RuntimeUI.CrearTitulo(panelSalud.transform, "TituloSalud", "ESTADO VITAL", 24f, TextAlignmentOptions.Left, RuntimeUI.ColorRojoBrillante);
+        RuntimeUI.Anclar(titSalud.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -14f), new Vector2(380f, 28f));
 
-        TextMeshProUGUI saludEtiqueta = RuntimeUI.CrearTexto(panelEstado.transform, "SaludEtiqueta", "SALUD", 18f, TextAlignmentOptions.Left, new Color(0.85f, 0.87f, 0.9f, 1f));
-        RuntimeUI.Anclar(saludEtiqueta.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -48f), new Vector2(160f, 24f));
+        TextMeshProUGUI lblSalud = RuntimeUI.CrearTexto(panelSalud.transform, "LabelSalud", "SALUD", 20f, TextAlignmentOptions.Left, RuntimeUI.ColorTexto);
+        RuntimeUI.Anclar(lblSalud.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -48f), new Vector2(140f, 24f));
 
-        textSalud = RuntimeUI.CrearTexto(panelEstado.transform, "SaludTexto", "100 / 100", 18f, TextAlignmentOptions.Right, Color.white);
-        RuntimeUI.Anclar(textSalud.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(254f, -48f), new Vector2(160f, 24f));
+        textSalud = RuntimeUI.CrearTexto(panelSalud.transform, "SaludTexto", "100%", 20f, TextAlignmentOptions.Right, RuntimeUI.ColorTexto);
+        RuntimeUI.Anclar(textSalud.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(240f, -48f), new Vector2(160f, 24f));
 
-        Image barraFondo = RuntimeUI.CrearPanel(panelEstado.transform, "BarraSaludFondo", new Color(0.16f, 0.16f, 0.19f, 1f));
+        // Barra de Salud con fondo oscuro y relleno rojo sangre
+        Image barraFondo = RuntimeUI.CrearPanel(panelSalud.transform, "BarraFondo", new Color(0.10f, 0.10f, 0.10f, 0.95f));
         barraFondo.raycastTarget = false;
-        RuntimeUI.Anclar(barraFondo.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -80f), new Vector2(398f, 16f));
+        RuntimeUI.Anclar(barraFondo.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -80f), new Vector2(388f, 18f));
 
-        Image barraRelleno = RuntimeUI.CrearPanel(barraFondo.transform, "BarraSaludRelleno", new Color32(190, 30, 30, 255));
+        Image barraRelleno = RuntimeUI.CrearPanel(barraFondo.transform, "BarraRelleno", RuntimeUI.ColorRojoSangre);
         barraRelleno.raycastTarget = false;
+        imagenSalud = barraRelleno;
         rellenoSalud = barraRelleno.rectTransform;
         rellenoSalud.anchorMin = Vector2.zero;
         rellenoSalud.anchorMax = Vector2.one;
         rellenoSalud.offsetMin = Vector2.zero;
         rellenoSalud.offsetMax = Vector2.zero;
 
-        textPuntaje = RuntimeUI.CrearTexto(panelEstado.transform, "Puntaje", "PUNTAJE   0000", 20f, TextAlignmentOptions.Left, Color.white);
-        RuntimeUI.Anclar(textPuntaje.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -108f), new Vector2(398f, 28f));
+        TextMeshProUGUI pistaPausa = RuntimeUI.CrearTexto(panelSalud.transform, "PistaPausa", "ESC / START   Pausa", 14f, TextAlignmentOptions.Left, RuntimeUI.ColorTextoTenue);
+        RuntimeUI.Anclar(pistaPausa.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -112f), new Vector2(380f, 22f));
 
-        textTiempo = RuntimeUI.CrearTexto(panelEstado.transform, "Tiempo", "TIEMPO   00:00", 18f, TextAlignmentOptions.Left, new Color(0.85f, 0.87f, 0.9f, 1f));
-        RuntimeUI.Anclar(textTiempo.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -142f), new Vector2(398f, 26f));
-
-        TextMeshProUGUI pista = RuntimeUI.CrearTexto(panelEstado.transform, "Pista", "ESC / START   Pausa", 14f, TextAlignmentOptions.Left, new Color(0.6f, 0.63f, 0.68f, 1f));
-        RuntimeUI.Anclar(pista.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -178f), new Vector2(398f, 22f));
-
-        Image panelObjetivos = RuntimeUI.CrearPanel(canvas.transform, "PanelObjetivos", new Color(0.03f, 0.03f, 0.05f, 0.82f));
+        // -------------------------------------------------------------
+        // PANEL SUPERIOR DERECHO: PUNTAJE, TIEMPO Y OBJETIVOS (Estilo Menú Principal)
+        // -------------------------------------------------------------
+        Image panelObjetivos = RuntimeUI.CrearPanelMarcoTerror(canvas.transform, "PanelObjetivos", new Vector2(460f, 290f), RuntimeUI.ColorPanelHud);
         panelObjetivos.raycastTarget = false;
-        RuntimeUI.Anclar(panelObjetivos.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 24f), new Vector2(470f, 230f));
+        RuntimeUI.Anclar(panelObjetivos.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -24f), new Vector2(460f, 290f));
 
-        TextMeshProUGUI tituloObjetivos = RuntimeUI.CrearTexto(panelObjetivos.transform, "Titulo", "OBJETIVOS", 20f, TextAlignmentOptions.Left, new Color32(214, 24, 24, 255));
-        RuntimeUI.Anclar(tituloObjetivos.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -12f), new Vector2(438f, 26f));
+        textPuntaje = RuntimeUI.CrearTexto(panelObjetivos.transform, "Puntaje", "PUNTAJE   0000", 22f, TextAlignmentOptions.Left, RuntimeUI.ColorTexto);
+        RuntimeUI.Anclar(textPuntaje.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -14f), new Vector2(210f, 26f));
 
-        textSubtitulo = RuntimeUI.CrearTexto(panelObjetivos.transform, "Subtitulo", "Repara el vehículo y escapa", 15f, TextAlignmentOptions.Left, new Color(0.78f, 0.8f, 0.84f, 1f));
-        RuntimeUI.Anclar(textSubtitulo.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -40f), new Vector2(438f, 22f));
+        textTiempo = RuntimeUI.CrearTexto(panelObjetivos.transform, "Tiempo", "TIEMPO   00:00", 20f, TextAlignmentOptions.Right, RuntimeUI.ColorTextoTenue);
+        RuntimeUI.Anclar(textTiempo.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-18f, -14f), new Vector2(200f, 26f));
 
-        CrearFila(panelObjetivos.transform, "Batería", -70f, out estadoBateria);
-        CrearFila(panelObjetivos.transform, "Aceite", -102f, out estadoAceite);
-        CrearFila(panelObjetivos.transform, "Gasolina", -134f, out estadoGasolina);
-        CrearFila(panelObjetivos.transform, "Llaves", -166f, out estadoLlaves);
+        TextMeshProUGUI titObjetivos = RuntimeUI.CrearTitulo(panelObjetivos.transform, "TituloObjetivos", "PIEZAS DEL VEHÍCULO", 24f, TextAlignmentOptions.Left, RuntimeUI.ColorRojoBrillante);
+        RuntimeUI.Anclar(titObjetivos.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -48f), new Vector2(420f, 26f));
 
-        Image fondoPrompt = RuntimeUI.CrearPanel(canvas.transform, "PanelPrompt", new Color(0.02f, 0.02f, 0.04f, 0.86f));
+        textProgresoAuto = RuntimeUI.CrearTexto(panelObjetivos.transform, "ProgresoAuto", "AUTO DE ESCAPE: [0/4 PIEZAS]", 17f, TextAlignmentOptions.Left, RuntimeUI.ColorAviso);
+        RuntimeUI.Anclar(textProgresoAuto.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -76f), new Vector2(420f, 22f));
+
+        CrearFilaObjetivo(panelObjetivos.transform, "⚡ BATERÍA (Taller)", -110f, out estadoBateria);
+        CrearFilaObjetivo(panelObjetivos.transform, "🛢️ ACEITE (Mecánica)", -144f, out estadoAceite);
+        CrearFilaObjetivo(panelObjetivos.transform, "⛽ GASOLINA (Depósito)", -178f, out estadoGasolina);
+        CrearFilaObjetivo(panelObjetivos.transform, "🔑 LLAVES (Caseta)", -212f, out estadoLlaves);
+
+        textSubtitulo = RuntimeUI.CrearTexto(panelObjetivos.transform, "Subtitulo", "Repara el vehículo y escapa", 16f, TextAlignmentOptions.Left, RuntimeUI.ColorTextoTenue);
+        RuntimeUI.Anclar(textSubtitulo.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -250f), new Vector2(420f, 24f));
+
+        // -------------------------------------------------------------
+        // BANNER DE INTERACCIÓN / PROMPT (Inferior Central)
+        // -------------------------------------------------------------
+        Image fondoPrompt = RuntimeUI.CrearPanelMarcoTerror(canvas.transform, "PanelPrompt", new Vector2(900f, 68f), new Color(0.04f, 0.04f, 0.04f, 0.95f));
         fondoPrompt.raycastTarget = false;
-        RuntimeUI.Anclar(fondoPrompt.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 48f), new Vector2(1000f, 70f));
-        panelPrompt = fondoPrompt.gameObject;
+        RuntimeUI.Anclar(fondoPrompt.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 100f), new Vector2(900f, 68f));
         rectPrompt = fondoPrompt.rectTransform;
+        panelPrompt = fondoPrompt.gameObject;
 
-        textoPrompt = RuntimeUI.CrearTexto(fondoPrompt.transform, "TextoPrompt", "", 20f, TextAlignmentOptions.Center, Color.white);
-        RuntimeUI.Estirar(textoPrompt.rectTransform, 16f, 16f, 10f, 10f);
+        textoPrompt = RuntimeUI.CrearTexto(fondoPrompt.transform, "TextoPrompt", "", 24f, TextAlignmentOptions.Center, RuntimeUI.ColorTexto);
+        textoPrompt.fontStyle = FontStyles.Bold;
+        RuntimeUI.Estirar(textoPrompt.rectTransform, 16f, 16f, 8f, 8f);
 
-        Image fondoMensaje = RuntimeUI.CrearPanel(canvas.transform, "PanelMensaje", new Color(0.02f, 0.02f, 0.04f, 0.86f));
+        // Mensaje flotante de aviso temporal
+        Image fondoMensaje = RuntimeUI.CrearPanel(canvas.transform, "PanelMensaje", new Color(0.02f, 0.02f, 0.02f, 0.90f));
         fondoMensaje.raycastTarget = false;
-        RuntimeUI.Anclar(fondoMensaje.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -20f), new Vector2(980f, 60f));
+        RuntimeUI.Anclar(fondoMensaje.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -120f), new Vector2(700f, 50f));
         panelMensaje = fondoMensaje.gameObject;
 
-        textoMensaje = RuntimeUI.CrearTexto(fondoMensaje.transform, "TextoMensaje", "", 22f, TextAlignmentOptions.Center, new Color32(242, 199, 68, 255));
+        textoMensaje = RuntimeUI.CrearTexto(fondoMensaje.transform, "TextoMensaje", "", 22f, TextAlignmentOptions.Center, RuntimeUI.ColorAviso);
         RuntimeUI.Estirar(textoMensaje.rectTransform, 16f, 16f, 8f, 8f);
 
-        Image mira = RuntimeUI.CrearPanel(canvas.transform, "Mira", new Color(1f, 1f, 1f, 0.7f));
+        // Retícula / Punto de mira sutil
+        Image mira = RuntimeUI.CrearPanel(canvas.transform, "Mira", new Color(1f, 1f, 1f, 0.65f));
         mira.raycastTarget = false;
-        RuntimeUI.Anclar(mira.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(6f, 6f));
+        RuntimeUI.Anclar(mira.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(5f, 5f));
 
         panelPrompt.SetActive(false);
         panelMensaje.SetActive(false);
     }
 
-    private void CrearFila(Transform padre, string etiqueta, float y, out TextMeshProUGUI estado)
+    private void CrearFilaObjetivo(Transform padre, string etiqueta, float y, out TextMeshProUGUI estado)
     {
-        TextMeshProUGUI nombre = RuntimeUI.CrearTexto(padre, "Fila_" + etiqueta, etiqueta, 18f, TextAlignmentOptions.Left, new Color(0.86f, 0.88f, 0.91f, 1f));
-        RuntimeUI.Anclar(nombre.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, y), new Vector2(250f, 24f));
+        TextMeshProUGUI nombre = RuntimeUI.CrearTexto(padre, "Fila_" + etiqueta, etiqueta, 18f, TextAlignmentOptions.Left, RuntimeUI.ColorTexto);
+        RuntimeUI.Anclar(nombre.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, y), new Vector2(260f, 24f));
 
-        estado = RuntimeUI.CrearTexto(padre, "Estado_" + etiqueta, "FALTA", 18f, TextAlignmentOptions.Right, ColorPendiente);
-        RuntimeUI.Anclar(estado.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(266f, y), new Vector2(188f, 24f));
+        estado = RuntimeUI.CrearTexto(padre, "Estado_" + etiqueta, "FALTA", 17f, TextAlignmentOptions.Right, ColorPendiente);
+        estado.fontStyle = FontStyles.Bold;
+        RuntimeUI.Anclar(estado.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(280f, y), new Vector2(160f, 24f));
     }
 
     private void ActualizarSalud()
@@ -140,13 +163,29 @@ public class HUDController : MonoBehaviour
 
         if (saludJugador == null)
         {
-            textSalud.text = "SIN DATOS";
-            rellenoSalud.anchorMax = new Vector2(0f, 1f);
+            textSalud.text = "100%";
+            rellenoSalud.anchorMax = new Vector2(1f, 1f);
             return;
         }
 
-        textSalud.text = Mathf.CeilToInt(saludJugador.Salud) + " / " + Mathf.CeilToInt(saludJugador.SaludMaxima);
-        rellenoSalud.anchorMax = new Vector2(saludJugador.SaludNormalizada, 1f);
+        float normalizada = saludJugador.SaludNormalizada;
+        textSalud.text = Mathf.CeilToInt(normalizada * 100f) + "%";
+        rellenoSalud.anchorMax = new Vector2(normalizada, 1f);
+
+        // Color de la barra de salud según estado
+        if (normalizada > 0.6f)
+            imagenSalud.color = RuntimeUI.ColorRojoSangre;
+        else if (normalizada > 0.3f)
+            imagenSalud.color = new Color(0.85f, 0.40f, 0.10f, 1f);
+        else
+            imagenSalud.color = new Color(0.95f, 0.05f, 0.05f, 1f);
+
+        // Pulso de viñeta sangrienta si la salud es crítica (< 35%)
+        if (normalizada < 0.35f && vignetaPantalla != null && Time.time - tiempoUltimoPulsoHerida > 1.2f)
+        {
+            tiempoUltimoPulsoHerida = Time.time;
+            vignetaPantalla.PulsoMiedo(0.8f, 0.88f);
+        }
     }
 
     private void ActualizarObjetivos()
@@ -154,15 +193,25 @@ public class HUDController : MonoBehaviour
         CarEscapeController car = CarEscapeController.Instance;
         if (car == null)
         {
-            ActualizarFila(estadoBateria, "BUSCANDO", ColorPendiente);
-            ActualizarFila(estadoAceite, "BUSCANDO", ColorPendiente);
-            ActualizarFila(estadoGasolina, "BUSCANDO", ColorPendiente);
-            ActualizarFila(estadoLlaves, "BUSCANDO", ColorPendiente);
+            ActualizarFila(estadoBateria, "FALTA", ColorPendiente);
+            ActualizarFila(estadoAceite, "FALTA", ColorPendiente);
+            ActualizarFila(estadoGasolina, "FALTA", ColorPendiente);
+            ActualizarFila(estadoLlaves, "FALTA", ColorPendiente);
             return;
         }
 
         if (!car.UsarUIExterna)
             car.UsarUIExterna = true;
+
+        int instaladas = 0;
+        if (car.BateriaInstalada) instaladas++;
+        if (car.AceiteLlenado) instaladas++;
+        if (car.GasolinaCargada) instaladas++;
+        if (car.TieneLlaves) instaladas++;
+
+        textProgresoAuto.text = car.EstaListoParaArrancar
+            ? "<color=#55FF55>¡AUTO REPARADO! [4/4 PIEZAS]</color>"
+            : "AUTO DE ESCAPE: [" + instaladas + "/4 PIEZAS INSTALADAS]";
 
         ActualizarFila(estadoBateria, car.BateriaInstalada ? "INSTALADA" : car.TieneBateria ? "EN MANO" : "FALTA",
             car.BateriaInstalada ? ColorCompletado : car.TieneBateria ? ColorEnMano : ColorPendiente);
@@ -177,8 +226,8 @@ public class HUDController : MonoBehaviour
             car.TieneLlaves ? ColorCompletado : ColorPendiente);
 
         textSubtitulo.text = car.EstaListoParaArrancar
-            ? "¡Escapa del estacionamiento!"
-            : "Repara el vehículo y escapa";
+            ? "¡Sube al auto y escapa por el portón!"
+            : "Encuentra las piezas en las zonas del estacionamiento";
     }
 
     private static void ActualizarFila(TextMeshProUGUI texto, string valor, Color color)
@@ -217,8 +266,8 @@ public class HUDController : MonoBehaviour
                     lineas++;
             }
 
-            float altura = Mathf.Clamp(48f + (lineas - 1) * 26f, 64f, 190f);
-            rectPrompt.sizeDelta = new Vector2(1000f, altura);
+            float altura = Mathf.Clamp(54f + (lineas - 1) * 26f, 68f, 190f);
+            rectPrompt.sizeDelta = new Vector2(900f, altura);
         }
 
         textoMensaje.text = car.MensajeFlotante;

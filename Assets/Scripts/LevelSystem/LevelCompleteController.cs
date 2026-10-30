@@ -11,6 +11,7 @@ public class LevelCompleteController : MonoBehaviour
     private TextMeshProUGUI textTiempo;
     private TextMeshProUGUI textMejor;
     private TextMeshProUGUI textRecord;
+    private TextMeshProUGUI textRango;
     private TextMeshProUGUI textDesbloqueo;
     private Button botonSiguiente;
 
@@ -34,38 +35,53 @@ public class LevelCompleteController : MonoBehaviour
         Canvas canvas = RuntimeUI.CrearCanvas("PantallaVictoria_Nivel2", 60);
         raiz = canvas.gameObject;
 
-        Image fondo = RuntimeUI.CrearPanel(canvas.transform, "Fondo", new Color(0f, 0f, 0f, 0.86f));
+        Image fondo = RuntimeUI.CrearPanel(canvas.transform, "Fondo", new Color(0f, 0f, 0f, 0.90f));
         RuntimeUI.Estirar(fondo.rectTransform, 0f, 0f, 0f, 0f);
+        RuntimeUI.CrearVigneta(canvas.transform, 0.55f);
 
-        Image panel = RuntimeUI.CrearPanel(canvas.transform, "PanelVictoria", new Color(0.04f, 0.05f, 0.06f, 0.99f));
-        RuntimeUI.Anclar(panel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(700f, 620f));
+        // Panel central con marco sangriento de terror
+        Image panel = RuntimeUI.CrearPanelMarcoTerror(canvas.transform, "PanelVictoria", new Vector2(760f, 660f), RuntimeUI.ColorPanel);
+        RuntimeUI.Anclar(panel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 660f));
 
-        TextMeshProUGUI titulo = RuntimeUI.CrearTexto(panel.transform, "Titulo", "NIVEL COMPLETADO", 44f, TextAlignmentOptions.Center, new Color32(57, 211, 83, 255));
-        RuntimeUI.Anclar(titulo.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -28f), new Vector2(640f, 56f));
+        // Título imponente con efecto Glitch
+        TextMeshProUGUI titulo = RuntimeUI.CrearTituloHorror(panel.transform, "TituloVictoria", "¡HAS ESCAPADO!", 80f, RuntimeUI.ColorTitulo);
+        RuntimeUI.Anclar(titulo.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(720f, 85f));
 
-        TextMeshProUGUI subtitulo = RuntimeUI.CrearTexto(panel.transform, "Subtitulo", "Has escapado del estacionamiento.\nLa ciudad sigue en silencio...", 20f, TextAlignmentOptions.Center, new Color(0.78f, 0.8f, 0.84f, 1f));
-        RuntimeUI.Anclar(subtitulo.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -94f), new Vector2(640f, 70f));
+        // Subtítulo temático en rojo sangre
+        TextMeshProUGUI subtitulo = RuntimeUI.CrearSubtituloHorror(panel.transform, "Subtitulo", "—   S  O  B  R  E  V  I  V  I  S  T  E       A     L  A     N  O  C  H  E   —");
+        RuntimeUI.Anclar(subtitulo.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -112f), new Vector2(720f, 32f));
 
-        textPuntaje = RuntimeUI.CrearTexto(panel.transform, "Puntaje", "PUNTAJE   0000", 24f, TextAlignmentOptions.Center, Color.white);
-        RuntimeUI.Anclar(textPuntaje.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -188f), new Vector2(640f, 32f));
+        // Tarjeta interior de estadísticas
+        Image tarjeta = RuntimeUI.CrearPanel(panel.transform, "TarjetaStats", new Color(0.02f, 0.02f, 0.02f, 0.88f));
+        RuntimeUI.Anclar(tarjeta.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -165f), new Vector2(680f, 250f));
 
-        textTiempo = RuntimeUI.CrearTexto(panel.transform, "Tiempo", "TIEMPO   00:00", 22f, TextAlignmentOptions.Center, new Color(0.85f, 0.87f, 0.9f, 1f));
-        RuntimeUI.Anclar(textTiempo.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -226f), new Vector2(640f, 30f));
+        textPuntaje = RuntimeUI.CrearTexto(tarjeta.transform, "Puntaje", "PUNTAJE FINAL       0000 PTS", 24f, TextAlignmentOptions.Center, RuntimeUI.ColorTexto);
+        textPuntaje.fontStyle = FontStyles.Bold;
+        RuntimeUI.Anclar(textPuntaje.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -22f), new Vector2(640f, 32f));
 
-        textMejor = RuntimeUI.CrearTexto(panel.transform, "Mejor", "MEJOR PUNTAJE   0000", 18f, TextAlignmentOptions.Center, new Color(0.7f, 0.73f, 0.78f, 1f));
-        RuntimeUI.Anclar(textMejor.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -264f), new Vector2(640f, 26f));
+        textTiempo = RuntimeUI.CrearTexto(tarjeta.transform, "Tiempo", "TIEMPO DE ESCAPE    00:00", 22f, TextAlignmentOptions.Center, RuntimeUI.ColorTextoTenue);
+        RuntimeUI.Anclar(textTiempo.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -66f), new Vector2(640f, 30f));
 
-        textRecord = RuntimeUI.CrearTexto(panel.transform, "Record", "¡NUEVO RÉCORD!", 20f, TextAlignmentOptions.Center, new Color32(242, 199, 68, 255));
-        RuntimeUI.Anclar(textRecord.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -296f), new Vector2(640f, 28f));
+        textMejor = RuntimeUI.CrearTexto(tarjeta.transform, "Mejor", "MEJOR RÉCORD        0000 PTS", 20f, TextAlignmentOptions.Center, RuntimeUI.ColorTextoTenue);
+        RuntimeUI.Anclar(textMejor.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -108f), new Vector2(640f, 28f));
 
-        textDesbloqueo = RuntimeUI.CrearTexto(panel.transform, "Desbloqueo", "Nivel 3 desbloqueado", 18f, TextAlignmentOptions.Center, new Color32(57, 211, 83, 255));
-        RuntimeUI.Anclar(textDesbloqueo.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -330f), new Vector2(640f, 26f));
+        textRango = RuntimeUI.CrearTexto(tarjeta.transform, "Rango", "CALIFICACIÓN DE SUPERVIVENCIA: RANGO S", 22f, TextAlignmentOptions.Center, RuntimeUI.ColorAviso);
+        textRango.fontStyle = FontStyles.Bold;
+        RuntimeUI.Anclar(textRango.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -152f), new Vector2(640f, 30f));
 
-        botonSiguiente = RuntimeUI.CrearBoton(panel.transform, "BotonSiguiente", "SIGUIENTE NIVEL", IrAlSiguiente);
-        RuntimeUI.Anclar(botonSiguiente.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -392f), new Vector2(420f, 56f));
+        textRecord = RuntimeUI.CrearTexto(tarjeta.transform, "Record", "★ ¡NUEVO RÉCORD DE PUNTUACIÓN! ★", 20f, TextAlignmentOptions.Center, RuntimeUI.ColorRojoBrillante);
+        textRecord.fontStyle = FontStyles.Bold;
+        RuntimeUI.Anclar(textRecord.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -192f), new Vector2(640f, 28f));
 
-        Button botonMenu = RuntimeUI.CrearBoton(panel.transform, "BotonMenu", "VOLVER AL MENÚ", IrAlMenu);
-        RuntimeUI.Anclar(botonMenu.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -462f), new Vector2(420f, 56f));
+        textDesbloqueo = RuntimeUI.CrearTexto(panel.transform, "Desbloqueo", "Siguiente nivel desbloqueado", 18f, TextAlignmentOptions.Center, RuntimeUI.ColorExito);
+        RuntimeUI.Anclar(textDesbloqueo.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -435f), new Vector2(680f, 26f));
+
+        // Botones de acción
+        botonSiguiente = RuntimeUI.CrearBotonHorror(panel.transform, "BotonSiguiente", "SIGUIENTE NIVEL", IrAlSiguiente);
+        RuntimeUI.Anclar(botonSiguiente.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -480f), new Vector2(440f, 58f));
+
+        Button botonMenu = RuntimeUI.CrearBotonHorror(panel.transform, "BotonMenu", "SALIR AL MENÚ PRINCIPAL", IrAlMenu);
+        RuntimeUI.Anclar(botonMenu.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -555f), new Vector2(440f, 58f));
     }
 
     private void AlCambiarEstado(EstadoNivel estado)
@@ -78,15 +94,22 @@ public class LevelCompleteController : MonoBehaviour
             return;
 
         LevelStateManager gestor = LevelStateManager.Instance;
-        textPuntaje.text = "PUNTAJE   " + gestor.Puntaje.ToString("0000");
-        textTiempo.text = "TIEMPO   " + FormatearTiempo(gestor.TiempoJugado);
-        textMejor.text = "MEJOR PUNTAJE   " + SaveManager.MejorPuntaje(gestor.NombreNivel).ToString("0000");
+        textPuntaje.text = "PUNTAJE FINAL       " + gestor.Puntaje.ToString("0000") + " PTS";
+        textTiempo.text = "TIEMPO DE ESCAPE    " + FormatearTiempo(gestor.TiempoJugado);
+        textMejor.text = "MEJOR RÉCORD        " + SaveManager.MejorPuntaje(gestor.NombreNivel).ToString("0000") + " PTS";
         textRecord.gameObject.SetActive(gestor.NuevoRecord);
+
+        // Cálculo de rango
+        string rango = "C";
+        if (gestor.Puntaje >= 2000 && gestor.TiempoJugado < 180f) rango = "S";
+        else if (gestor.Puntaje >= 1200) rango = "A";
+        else if (gestor.Puntaje >= 600) rango = "B";
+        textRango.text = "CALIFICACIÓN DE SUPERVIVENCIA: RANGO " + rango;
 
         bool haySiguiente = !string.IsNullOrEmpty(gestor.SiguienteEscena) && Application.CanStreamedLevelBeLoaded(gestor.SiguienteEscena);
         botonSiguiente.gameObject.SetActive(haySiguiente);
         textDesbloqueo.gameObject.SetActive(haySiguiente);
-        textDesbloqueo.text = haySiguiente ? "Nivel " + gestor.IndiceSiguienteNivel + " desbloqueado" : "Continuará...";
+        textDesbloqueo.text = haySiguiente ? "Nivel " + gestor.IndiceSiguienteNivel + " desbloqueado" : "¡Has completado todos los niveles disponibles!";
 
         if (EventSystem.current != null)
             EventSystem.current.SetSelectedGameObject(haySiguiente ? botonSiguiente.gameObject : null);

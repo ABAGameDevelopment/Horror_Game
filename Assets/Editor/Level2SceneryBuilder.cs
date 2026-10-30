@@ -9,6 +9,15 @@ public static class Level2SceneryBuilder
 {
     private const string ScenePath = "Assets/Scenes/Level2/University.unity";
     private const string SceneCopyPath = "Assets/Scenes/Level2/Level2.unity";
+    private const string SceneryVersionName = "Escenografia_Nivel2_v5";
+    private const string StreetLightPackPath = "Assets/Sat Productions/G-01/Street Lights Pack 01/Prefabs/";
+    private static readonly string[] StreetLightVariants =
+    {
+        "Street_Light_A_01",
+        "Street_Light_A_04",
+        "Street_Light_A_07",
+        "Street_Light_A_10"
+    };
 
     // Prefabs de Vehículos
     private const string CarRedPrefabPath = "Assets/ARCADE - FREE Racing Car/Prefabs (With Colliders)/Free Racing Car Red Variant.prefab";
@@ -88,7 +97,8 @@ public static class Level2SceneryBuilder
             // Ocultar o eliminar letreros de objetivos
             CleanObjectiveSigns();
 
-            if (GameObject.Find("Escenografia_Estacionamiento") == null)
+            GameObject root = GameObject.Find("Escenografia_Estacionamiento");
+            if (root == null || GameObject.Find(SceneryVersionName) == null)
             {
                 BuildLevel2Scenery();
             }
@@ -96,6 +106,7 @@ public static class Level2SceneryBuilder
     }
 
     [MenuItem("Tools/Nivel 2/Construir Escenografia Estacionamiento (Completa y Rica)")]
+    [MenuItem("Tools/Horror Game/3. Construir Escenografia Nivel 2")]
     public static void BuildLevel2Scenery()
     {
         var activeScene = EditorSceneManager.GetActiveScene();
@@ -121,6 +132,9 @@ public static class Level2SceneryBuilder
         }
         root = new GameObject("Escenografia_Estacionamiento");
         Undo.RegisterCreatedObjectUndo(root, "Crear Escenografia Estacionamiento");
+
+        GameObject versionMarker = new GameObject(SceneryVersionName);
+        versionMarker.transform.SetParent(root.transform);
 
         // 3. Atmósfera de Horror y Skybox
         SetupAtmosphere(root);
@@ -164,16 +178,38 @@ public static class Level2SceneryBuilder
         // 15. Posicionar al Jugador saliendo de la universidad
         SetupPlayerStart(root);
 
-        // 16. Nodos de acecho de la criatura
+        // 16. Apagar la iluminación heredada del Nivel 1 (campus/interiores)
+        DisableLegacyLights(root);
+
+        // 17. Nodos de acecho de la criatura
         BuildCreatureWaypoints(root);
 
         // Guardar cambios
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
         EditorSceneManager.SaveOpenScenes();
 
-        if (!System.IO.File.Exists(SceneCopyPath))
+        // Sincronizar ambas copias de la escena (University.unity y Level2.unity)
+        try
         {
-            AssetDatabase.CopyAsset(ScenePath, SceneCopyPath);
+            if (activeScene.path == ScenePath && System.IO.File.Exists(ScenePath))
+            {
+                System.IO.File.Copy(ScenePath, SceneCopyPath, true);
+                AssetDatabase.ImportAsset(SceneCopyPath, ImportAssetOptions.ForceUpdate);
+            }
+            else if (activeScene.path == SceneCopyPath && System.IO.File.Exists(SceneCopyPath))
+            {
+                System.IO.File.Copy(SceneCopyPath, ScenePath, true);
+                AssetDatabase.ImportAsset(ScenePath, ImportAssetOptions.ForceUpdate);
+            }
+            else if (System.IO.File.Exists(ScenePath))
+            {
+                System.IO.File.Copy(ScenePath, SceneCopyPath, true);
+                AssetDatabase.ImportAsset(SceneCopyPath, ImportAssetOptions.ForceUpdate);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning("[Nivel 2] Advertencia al sincronizar escena: " + ex.Message);
         }
 
         Debug.Log("<color=green>[Nivel 2]</color> ¡Escenografia completa del Estacionamiento terminada exitosamente!");
@@ -199,11 +235,46 @@ public static class Level2SceneryBuilder
 
     private static void HideOldInterior()
     {
-        // Ocultar EdificioV o moverlo para que no interfiera con el estacionamiento
-        GameObject interior = GameObject.Find("EdificioV");
-        if (interior != null)
+        // Ocultar todos los objetos, aulas, oficinas y luces interiores heredados del Nivel 1
+        string[] interiorObjects = {
+            "EdificioV", "Classroom", "Audiovisual", "Walls", "Lamparas_Y_Luces",
+            "Paredes_Divisorias_Oficinas", "Oficina_1", "Oficina_2", "Oficina_3", "Oficina_4",
+            "Oficinas_Con_Ventanillas", "Muebles_Y_Objetos", "Cuadros_Y_Espejos",
+            "Video_Sala_Audiovisual", "Decoracion_Edificio"
+        };
+
+        foreach (string name in interiorObjects)
         {
-            interior.SetActive(false);
+            GameObject obj = GameObject.Find(name);
+            if (obj != null)
+            {
+                obj.SetActive(false);
+            }
+        }
+
+        // Asegurar que el Terreno del suelo del estacionamiento siempre esté activo
+        GameObject terrain = GameObject.Find("Terrain");
+        if (terrain != null)
+        {
+            terrain.SetActive(true);
+        }
+    }
+
+    private static void DisableLegacyLights(GameObject root)
+    {
+        GameObject player = GameObject.Find("Player");
+        Transform playerTransform = player != null ? player.transform : null;
+
+        Light[] luces = Object.FindObjectsByType<Light>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        foreach (Light luz in luces)
+        {
+            if (luz.transform.IsChildOf(root.transform))
+                continue;
+
+            if (playerTransform != null && luz.transform.IsChildOf(playerTransform))
+                continue;
+
+            luz.enabled = false;
         }
     }
 
@@ -212,21 +283,24 @@ public static class Level2SceneryBuilder
         Material skyMat = AssetDatabase.LoadAssetAtPath<Material>(SkyMidnightPath);
         if (skyMat != null) RenderSettings.skybox = skyMat;
 
+        // Oscuridad profunda de terror estilo Silent Hill / Resident Evil
         RenderSettings.ambientMode = AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.035f, 0.05f, 0.09f, 1f);
+        RenderSettings.ambientLight = new Color(0.001f, 0.0012f, 0.002f, 1f); // Noche cerrada
+        RenderSettings.ambientIntensity = 0f;
+        RenderSettings.reflectionIntensity = 0.01f;
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.ExponentialSquared;
-        RenderSettings.fogColor = new Color(0.025f, 0.04f, 0.07f, 1f);
-        RenderSettings.fogDensity = 0.032f;
+        RenderSettings.fogColor = new Color(0.002f, 0.003f, 0.005f, 1f);
+        RenderSettings.fogDensity = 0.028f;
 
-        // Luz de luna fría
+        // Luz de luna fría prácticamente apagada para obligar a usar linterna y farolas
         GameObject moonGo = new GameObject("Luz_Luna_Exterior");
         moonGo.transform.SetParent(root.transform);
         moonGo.transform.rotation = Quaternion.Euler(55f, -35f, 0f);
         Light moonLight = moonGo.AddComponent<Light>();
         moonLight.type = LightType.Directional;
-        moonLight.color = new Color(0.38f, 0.48f, 0.68f);
-        moonLight.intensity = 0.16f;
+        moonLight.color = new Color(0.05f, 0.07f, 0.12f);
+        moonLight.intensity = 0.003f;
         moonLight.shadows = LightShadows.Soft;
     }
 
@@ -235,60 +309,29 @@ public static class Level2SceneryBuilder
         GameObject groundGroup = new GameObject("Pavimento_Y_Senalizacion");
         groundGroup.transform.SetParent(root.transform);
 
-        // 1. Asfalto Principal (100m ancho x 80m largo)
+        // 1. Asfalto Principal continuo y macizo (120m ancho x 100m largo x 0.5m grosor)
         GameObject asphalt = GameObject.CreatePrimitive(PrimitiveType.Cube);
         asphalt.name = "Asfalto_Explanada";
         asphalt.transform.SetParent(groundGroup.transform);
-        asphalt.transform.position = new Vector3(0f, -0.1f, 0f);
-        asphalt.transform.localScale = new Vector3(100f, 0.2f, 80f);
+        asphalt.transform.position = new Vector3(0f, -0.05f, 0f);
+        asphalt.transform.localScale = new Vector3(120f, 0.4f, 100f);
         Material matAsfalto = AssetDatabase.LoadAssetAtPath<Material>(MatAsfaltoPath);
         if (matAsfalto != null) asphalt.GetComponent<Renderer>().sharedMaterial = matAsfalto;
 
-        // 2. Charcos de agua reflectantes
-        Material matCharco = AssetDatabase.LoadAssetAtPath<Material>(MatCharcoAguaPath);
-        Vector3[] puddlePositions = {
-            new Vector3(-5f, 0.015f, -10f),
-            new Vector3(8f, 0.015f, 5f),
-            new Vector3(-18f, 0.015f, 18f),
-            new Vector3(22f, 0.015f, -14f),
-            new Vector3(0f, 0.015f, 24f),
-            new Vector3(-28f, 0.015f, -5f)
-        };
-        Vector2[] puddleSizes = {
-            new Vector2(6.5f, 4.2f),
-            new Vector2(5.0f, 3.8f),
-            new Vector2(7.2f, 5.0f),
-            new Vector2(4.5f, 3.2f),
-            new Vector2(8.0f, 4.0f),
-            new Vector2(5.5f, 3.5f)
-        };
-
-        for (int p = 0; p < puddlePositions.Length; p++)
-        {
-            GameObject puddle = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            puddle.name = string.Format("Charco_Agua_{0}", p + 1);
-            puddle.transform.SetParent(groundGroup.transform);
-            puddle.transform.position = puddlePositions[p];
-            puddle.transform.rotation = Quaternion.Euler(90f, Random.Range(0f, 180f), 0f);
-            puddle.transform.localScale = new Vector3(puddleSizes[p].x, puddleSizes[p].y, 1f);
-            if (matCharco != null) puddle.GetComponent<Renderer>().sharedMaterial = matCharco;
-            Object.DestroyImmediate(puddle.GetComponent<Collider>());
-        }
-
-        // 3. Pintura vial: Cajones de estacionamiento amarillos
+        // 2. Pintura vial: Cajones de estacionamiento amarillos y topes de rueda
         Material matLineas = AssetDatabase.LoadAssetAtPath<Material>(MatLineasPath);
-        float[] rowXCoords = { -24f, -14f, 14f, 24f };
+        float[] rowXCoords = { -20f, 20f };
         for (int r = 0; r < rowXCoords.Length; r++)
         {
             float rx = rowXCoords[r];
-            for (int zIdx = -5; zIdx <= 5; zIdx++)
+            for (int zIdx = -3; zIdx <= 3; zIdx++)
             {
                 float rz = zIdx * 5.6f;
-                // Línea divisoria
+                // Línea divisoria de cajón
                 GameObject line = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 line.name = string.Format("Linea_Cajon_{0}_{1}", r, zIdx);
                 line.transform.SetParent(groundGroup.transform);
-                line.transform.position = new Vector3(rx, 0.02f, rz);
+                line.transform.position = new Vector3(rx, 0.16f, rz);
                 line.transform.localScale = new Vector3(5.2f, 0.02f, 0.16f);
                 if (matLineas != null) line.GetComponent<Renderer>().sharedMaterial = matLineas;
 
@@ -297,7 +340,7 @@ public static class Level2SceneryBuilder
                 curb.name = string.Format("Tope_Rueda_{0}_{1}", r, zIdx);
                 curb.transform.SetParent(groundGroup.transform);
                 float curbX = (rx < 0) ? rx - 2.3f : rx + 2.3f;
-                curb.transform.position = new Vector3(curbX, 0.08f, rz + 2.6f);
+                curb.transform.position = new Vector3(curbX, 0.22f, rz + 2.6f);
                 curb.transform.localScale = new Vector3(0.25f, 0.16f, 1.9f);
                 if (matLineas != null) curb.GetComponent<Renderer>().sharedMaterial = matLineas;
             }
@@ -361,43 +404,89 @@ public static class Level2SceneryBuilder
 
     private static void BuildParkingCanopies(GameObject root)
     {
-        GameObject canopyGroup = new GameObject("Marquesinas_Techadas");
+        GameObject canopyGroup = new GameObject("Marquesinas_Techadas_Con_Iluminacion");
         canopyGroup.transform.SetParent(root.transform);
 
         GameObject canopyMesh = AssetDatabase.LoadAssetAtPath<GameObject>(ParkingCanopyModelPath);
         Material matMarquesina = AssetDatabase.LoadAssetAtPath<Material>(MatMarquesinaPath);
+        Material matFoco = AssetDatabase.LoadAssetAtPath<Material>(MatFocoLuzPath);
 
-        // Marquesina Oeste sobre cajones
-        if (canopyMesh != null)
+        // Posiciones de marquesinas (techitos de estacionamiento sobre los cajones de autos)
+        Vector3[] canopyPositions = {
+            // Hilera Oeste
+            new Vector3(-20f, 0f, -14f),
+            new Vector3(-20f, 0f, -4f),
+            new Vector3(-20f, 0f, 6f),
+            new Vector3(-20f, 0f, 16f),
+            // Hilera Este
+            new Vector3(20f, 0f, -14f),
+            new Vector3(20f, 0f, -4f),
+            new Vector3(20f, 0f, 6f),
+            new Vector3(20f, 0f, 16f)
+        };
+
+        float[] canopyRotations = { 90f, 90f, 90f, 90f, -90f, -90f, -90f, -90f };
+        // Lámparas: la mayoría encendidas iluminando los autos abajo, una parpadeando y otra apagada
+        bool[] luzEncendida = { true, true, false, true, true, true, false, true };
+
+        for (int i = 0; i < canopyPositions.Length; i++)
         {
-            GameObject c1 = (GameObject)PrefabUtility.InstantiatePrefab(canopyMesh);
-            c1.name = "Marquesina_Oeste_1";
-            c1.transform.SetParent(canopyGroup.transform);
-            c1.transform.position = new Vector3(-19f, 0f, -6f);
-            c1.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
-            if (matMarquesina != null) c1.GetComponentInChildren<Renderer>().sharedMaterial = matMarquesina;
+            GameObject canopyObj = (canopyMesh != null)
+                ? (GameObject)PrefabUtility.InstantiatePrefab(canopyMesh)
+                : GameObject.CreatePrimitive(PrimitiveType.Cube);
 
-            GameObject c2 = (GameObject)PrefabUtility.InstantiatePrefab(canopyMesh);
-            c2.name = "Marquesina_Oeste_2";
-            c2.transform.SetParent(canopyGroup.transform);
-            c2.transform.position = new Vector3(-19f, 0f, 8f);
-            c2.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
-            if (matMarquesina != null) c2.GetComponentInChildren<Renderer>().sharedMaterial = matMarquesina;
+            canopyObj.name = string.Format("Techito_Canopy_{0}_{1}", (i < 4) ? "Oeste" : "Este", (i % 4) + 1);
+            canopyObj.transform.SetParent(canopyGroup.transform);
+            canopyObj.transform.position = canopyPositions[i];
+            canopyObj.transform.rotation = Quaternion.Euler(0f, canopyRotations[i], 0f);
 
-            // Marquesina Este
-            GameObject c3 = (GameObject)PrefabUtility.InstantiatePrefab(canopyMesh);
-            c3.name = "Marquesina_Este_1";
-            c3.transform.SetParent(canopyGroup.transform);
-            c3.transform.position = new Vector3(19f, 0f, -6f);
-            c3.transform.rotation = Quaternion.Euler(0f, -90f, 0f);
-            if (matMarquesina != null) c3.GetComponentInChildren<Renderer>().sharedMaterial = matMarquesina;
+            if (matMarquesina != null && canopyObj.GetComponentInChildren<Renderer>() != null)
+            {
+                foreach (Renderer r in canopyObj.GetComponentsInChildren<Renderer>())
+                    r.sharedMaterial = matMarquesina;
+            }
 
-            GameObject c4 = (GameObject)PrefabUtility.InstantiatePrefab(canopyMesh);
-            c4.name = "Marquesina_Este_2";
-            c4.transform.SetParent(canopyGroup.transform);
-            c4.transform.position = new Vector3(19f, 0f, 8f);
-            c4.transform.rotation = Quaternion.Euler(0f, -90f, 0f);
-            if (matMarquesina != null) c4.GetComponentInChildren<Renderer>().sharedMaterial = matMarquesina;
+            // Luminaria industrial montada en el techo de la marquesina apuntando hacia los autos
+            GameObject lamparaTecho = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            lamparaTecho.name = "Luminaria_Techo";
+            lamparaTecho.transform.SetParent(canopyObj.transform);
+            lamparaTecho.transform.localPosition = new Vector3(0f, 3.25f, 0f);
+            lamparaTecho.transform.localRotation = Quaternion.identity;
+            lamparaTecho.transform.localScale = new Vector3(2.4f, 0.12f, 0.45f);
+
+            if (matFoco != null)
+                lamparaTecho.GetComponent<Renderer>().sharedMaterial = matFoco;
+
+            if (lamparaTecho.GetComponent<Collider>() != null)
+                Object.DestroyImmediate(lamparaTecho.GetComponent<Collider>());
+
+            if (luzEncendida[i])
+            {
+                // Luz Point parentada directamente a canopyObj (escala uniforme 1,1,1)
+                GameObject lightGo = new GameObject("Luz_Canopy_Point");
+                lightGo.transform.SetParent(canopyObj.transform);
+                lightGo.transform.localPosition = new Vector3(0f, 2.95f, 0f);
+
+                Light point = lightGo.AddComponent<Light>();
+                point.type = LightType.Point;
+                point.range = 13f;
+                point.color = new Color(1.0f, 0.75f, 0.40f); // Tono cálido industrial fluorescente
+                point.intensity = 13f; // Visible y envolvente en URP
+                point.shadows = LightShadows.None; // Sin auto-oclusión con techo
+
+                // Parpadeo de terror en las marquesinas
+                HorrorLightFlicker flicker = lightGo.AddComponent<HorrorLightFlicker>();
+                if (i == 1 || i == 5)
+                {
+                    // Tubo fluorescente zumbando y parpadeando violentamente
+                    flicker.Configure(0.2f, 15f, 8.5f, 0.05f);
+                }
+                else
+                {
+                    // Fluorescente titilando sutilmente
+                    flicker.Configure(2.0f, 13f, 5.0f, 0.02f);
+                }
+            }
         }
     }
 
@@ -521,8 +610,8 @@ public static class Level2SceneryBuilder
         Light el = exitLightGo.AddComponent<Light>();
         el.type = LightType.Point;
         el.color = new Color(1.0f, 0.08f, 0.08f);
-        el.intensity = 1.6f;
-        el.range = 6.0f;
+        el.intensity = 1.1f;
+        el.range = 5.0f;
         exitLightGo.AddComponent<HorrorLightFlicker>();
 
         // Cámaras de seguridad en las esquinas de la fachada
@@ -548,56 +637,110 @@ public static class Level2SceneryBuilder
         GameObject lightsGroup = new GameObject("Iluminacion_Farolas_Estacionamiento");
         lightsGroup.transform.SetParent(root.transform);
 
-        GameObject lampMesh = AssetDatabase.LoadAssetAtPath<GameObject>(StreetLampModelPath);
+        GameObject fallbackLamp = AssetDatabase.LoadAssetAtPath<GameObject>(StreetLampModelPath);
         Material matPoste = AssetDatabase.LoadAssetAtPath<Material>(MatPosteLuzPath);
 
         Vector3[] lampPositions = {
-            new Vector3(-18f, 0f, -22f),
-            new Vector3(18f, 0f, -22f),
-            new Vector3(-18f, 0f, -4f),
-            new Vector3(18f, 0f, -4f),
-            new Vector3(-18f, 0f, 14f),
-            new Vector3(18f, 0f, 14f),
-            new Vector3(-5f, 0f, 32f),
-            new Vector3(16f, 0f, 32f)
+            new Vector3(-8.5f, 0f, -22f),
+            new Vector3(8.5f, 0f, -22f),
+            new Vector3(-8.5f, 0f, -4f),
+            new Vector3(8.5f, 0f, -4f),
+            new Vector3(-8.5f, 0f, 14f),
+            new Vector3(8.5f, 0f, 14f),
+            new Vector3(-6f, 0f, 32f),
+            new Vector3(15f, 0f, 32f)
         };
+        bool[] encendida = { true, true, true, true, true, true, true, true };
 
         for (int i = 0; i < lampPositions.Length; i++)
         {
             Vector3 pos = lampPositions[i];
-            GameObject lamp = (lampMesh != null) ? (GameObject)PrefabUtility.InstantiatePrefab(lampMesh) : GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            string variant = StreetLightVariants[i % StreetLightVariants.Length];
+            GameObject lampPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(StreetLightPackPath + variant + ".prefab");
+            if (lampPrefab == null)
+                lampPrefab = fallbackLamp;
+
+            GameObject lamp = (lampPrefab != null)
+                ? (GameObject)PrefabUtility.InstantiatePrefab(lampPrefab)
+                : GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             lamp.name = "Poste_Farola_" + (i + 1);
             lamp.transform.SetParent(lightsGroup.transform);
             lamp.transform.position = pos;
-            if (matPoste != null && lampMesh == null) lamp.GetComponent<Renderer>().sharedMaterial = matPoste;
+            lamp.transform.rotation = Quaternion.Euler(0f, (i % 2 == 0) ? 0f : 180f, 0f);
 
-            // Luz cenital focal
-            GameObject lightChild = new GameObject("Cono_Luz_Farola");
-            lightChild.transform.SetParent(lamp.transform);
-            lightChild.transform.position = pos + new Vector3(0.9f, 5.2f, 0f);
-            lightChild.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            if (lampPrefab == fallbackLamp && matPoste != null && lamp.GetComponent<Renderer>() != null)
+                lamp.GetComponent<Renderer>().sharedMaterial = matPoste;
 
-            Light spot = lightChild.AddComponent<Light>();
-            spot.type = LightType.Spot;
-            spot.spotAngle = 82f;
-            spot.innerSpotAngle = 40f;
-            spot.range = 18f;
-            // Farola 4 apagada / fundida
-            if (i == 3)
+            // Apagar las luces incluidas en el prefab: usaremos una sola luz controlada por farola.
+            foreach (Light included in lamp.GetComponentsInChildren<Light>(true))
+                included.enabled = false;
+
+            float alturaLampara = 5.6f;
+            Renderer[] renderers = lamp.GetComponentsInChildren<Renderer>();
+            if (renderers.Length > 0)
             {
-                spot.enabled = false;
+                Bounds bounds = renderers[0].bounds;
+                for (int r = 1; r < renderers.Length; r++)
+                    bounds.Encapsulate(renderers[r].bounds);
+
+                lamp.transform.position += Vector3.up * (-bounds.min.y);
+                alturaLampara = bounds.size.y;
+            }
+
+            if (!encendida[i])
+                continue;
+
+            // 1. Luz de Sodio Principal tipo PointLight (igual que Nivel 1)
+            // Irradia 360 grados iluminando el poste, suelo de asfalto y autos circundantes
+            GameObject pointLightGo = new GameObject("Luz_Farola_Point");
+            pointLightGo.transform.SetParent(lamp.transform);
+            pointLightGo.transform.localPosition = new Vector3(0f, alturaLampara - 0.35f, 0f);
+
+            Light pointLight = pointLightGo.AddComponent<Light>();
+            pointLight.type = LightType.Point;
+            pointLight.range = 17f; // Alcance amplio que baña el asfalto y vehículos
+            pointLight.color = new Color(1.0f, 0.62f, 0.30f); // Vapor de sodio cálido/ámbar
+            pointLight.intensity = 16f; // Intensidad real visible en URP
+            pointLight.shadows = LightShadows.Soft;
+
+            // 2. Foco de emisión en la cabeza de la farola
+            GameObject bulbGlow = new GameObject("Brillo_Bombilla");
+            bulbGlow.transform.SetParent(lamp.transform);
+            bulbGlow.transform.localPosition = new Vector3(0f, alturaLampara - 0.2f, 0f);
+            Light bulbLight = bulbGlow.AddComponent<Light>();
+            bulbLight.type = LightType.Point;
+            bulbLight.range = 4.5f;
+            bulbLight.color = new Color(1.0f, 0.85f, 0.55f);
+            bulbLight.intensity = 4.5f;
+            bulbLight.shadows = LightShadows.None;
+
+            // 3. Sistema de Parpadeo de Terror (HorrorLightFlicker) como Nivel 1
+            HorrorLightFlicker flicker = pointLightGo.AddComponent<HorrorLightFlicker>();
+            HorrorLightFlicker bulbFlicker = bulbGlow.AddComponent<HorrorLightFlicker>();
+
+            if (i == 2)
+            {
+                // Farola junto al auto: Parpadeo de terror errático muy inquietante
+                flicker.Configure(0.1f, 18f, 11f, 0.065f);
+                bulbFlicker.Configure(0.05f, 5f, 11f, 0.065f);
+            }
+            else if (i == 6)
+            {
+                // Farola cerca del portón: Falla eléctrica agonizante
+                flicker.Configure(0.05f, 17f, 13f, 0.08f);
+                bulbFlicker.Configure(0.02f, 4.5f, 13f, 0.08f);
+            }
+            else if (i % 2 == 0)
+            {
+                // Parpadeo orgánico sutil con glitches periódicos
+                flicker.Configure(2.5f, 15f, 6.5f, 0.025f);
+                bulbFlicker.Configure(1.0f, 4.0f, 6.5f, 0.025f);
             }
             else
             {
-                spot.color = new Color(1.0f, 0.84f, 0.58f);
-                spot.intensity = 2.8f;
-                spot.shadows = LightShadows.Soft;
-
-                // Farola 2 y 6 parpadean tétricamente
-                if (i == 2 || i == 6)
-                {
-                    lightChild.AddComponent<HorrorLightFlicker>();
-                }
+                // Luz fija constante con zumbido imperceptible
+                flicker.Configure(5.0f, 16f, 4.0f, 0.01f);
+                bulbFlicker.Configure(2.0f, 4.5f, 4.0f, 0.01f);
             }
         }
     }
@@ -619,7 +762,22 @@ public static class Level2SceneryBuilder
 
             // Script de escape que gestiona la reparación, cofre interactivo e impacto
             CarEscapeController escapeCtrl = car.AddComponent<CarEscapeController>();
+            escapeCtrl.ConfigurarAudios(
+                AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/Level2/Cofre_Abrir.wav"),
+                AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/Level2/Cofre_Cerrar.wav"),
+                AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/Level2/Puerta_Abrir.wav"),
+                AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/Level2/Puerta_Cerrar.wav"),
+                AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/Level2/Motor_Arranque.wav")
+            );
             escapeCtrl.AsegurarComponentesCofreYMotor();
+
+            // Inmovilizar vehículo físicamente para que no se mueva al tocarlo
+            Rigidbody rbEscape = car.GetComponent<Rigidbody>();
+            if (rbEscape != null)
+            {
+                rbEscape.isKinematic = true;
+                rbEscape.constraints = RigidbodyConstraints.FreezeAll;
+            }
 
             // Triggers interactivos
             // 1. Cofre / Motor (Batería y Aceite)
@@ -656,7 +814,7 @@ public static class Level2SceneryBuilder
             hl.spotAngle = 60f;
             hl.range = 14f;
             hl.color = new Color(1.0f, 0.95f, 0.8f);
-            hl.intensity = 1.1f;
+            hl.intensity = 0.75f;
         }
     }
 
@@ -671,20 +829,24 @@ public static class Level2SceneryBuilder
             CarBluePrefabPath, CarGrayPrefabPath, CarPurplePrefabPath
         };
 
+        // Vehículos estacionados bajo las marquesinas techadas e iluminadas
         Vector3[] positions = {
-            new Vector3(-24f, 0.15f, -18f),
-            new Vector3(-24f, 0.15f, -7f),
-            new Vector3(-24f, 0.15f, 10f),
-            new Vector3(-14f, 0.15f, -12f),
-            new Vector3(-14f, 0.15f, 16f),
-            new Vector3(14f, 0.15f, -17f),
-            new Vector3(14f, 0.15f, 6f),
-            new Vector3(24f, 0.15f, -10f),
-            new Vector3(24f, 0.15f, 8f),
-            new Vector3(18f, 0.15f, 24f) // Auto chocado cerca de la salida
+            // Bajo techito Oeste
+            new Vector3(-20f, 0.15f, -14f),
+            new Vector3(-20f, 0.15f, -5f),
+            new Vector3(-20f, 0.15f, 5f),
+            new Vector3(-20f, 0.15f, 15f),
+            // Bajo techito Este
+            new Vector3(20f, 0.15f, -14f),
+            new Vector3(20f, 0.15f, -5f),
+            new Vector3(20f, 0.15f, 5f),
+            new Vector3(20f, 0.15f, 15f),
+            // Autos cruzados / chocados en tránsito
+            new Vector3(-6f, 0.15f, -15f),
+            new Vector3(14f, 0.15f, 22f)
         };
 
-        float[] angles = { 0f, 6f, 180f, -12f, 180f, 0f, 175f, -180f, 10f, 45f };
+        float[] angles = { 90f, 90f, 90f, 90f, -90f, -90f, -90f, -90f, 25f, 45f };
 
         for (int i = 0; i < positions.Length; i++)
         {
@@ -696,6 +858,14 @@ public static class Level2SceneryBuilder
                 car.transform.SetParent(abandonedGroup.transform);
                 car.transform.position = positions[i];
                 car.transform.rotation = Quaternion.Euler(0f, angles[i], 0f);
+
+                // Fijar rígidamente para que el auto nunca se desplace o gire al chocar con el jugador
+                Rigidbody rb = car.GetComponent<Rigidbody>();
+                if (rb != null)
+                {
+                    rb.isKinematic = true;
+                    rb.constraints = RigidbodyConstraints.FreezeAll;
+                }
             }
         }
     }
@@ -741,8 +911,8 @@ public static class Level2SceneryBuilder
         Light l = bLight.AddComponent<Light>();
         l.type = LightType.Point;
         l.color = new Color(0.7f, 0.85f, 1.0f);
-        l.intensity = 1.0f;
-        l.range = 4.5f;
+        l.intensity = 0.7f;
+        l.range = 4.0f;
 
         // ITEM: LLAVES DEL AUTOMÓVIL sobre el escritorio
         GameObject keyMesh = AssetDatabase.LoadAssetAtPath<GameObject>(CarKeyModelPath);
@@ -770,8 +940,8 @@ public static class Level2SceneryBuilder
         Light gl = glow.AddComponent<Light>();
         gl.type = LightType.Point;
         gl.color = new Color(1f, 0.9f, 0.6f);
-        gl.range = 1.5f;
-        gl.intensity = 0.8f;
+        gl.range = 1.2f;
+        gl.intensity = 0.45f;
     }
 
     // ------------------------------------------------------------------------
@@ -853,8 +1023,8 @@ public static class Level2SceneryBuilder
         Light wl = workLight.AddComponent<Light>();
         wl.type = LightType.Point;
         wl.color = new Color(1.0f, 0.9f, 0.7f);
-        wl.range = 4.5f;
-        wl.intensity = 1.0f;
+        wl.range = 4.0f;
+        wl.intensity = 0.7f;
     }
 
     // ------------------------------------------------------------------------
@@ -915,8 +1085,8 @@ public static class Level2SceneryBuilder
         Light sl = sparkLight.AddComponent<Light>();
         sl.type = LightType.Point;
         sl.color = new Color(0.4f, 0.7f, 1.0f);
-        sl.range = 5f;
-        sl.intensity = 1.2f;
+        sl.range = 4.5f;
+        sl.intensity = 0.9f;
         sparkLight.AddComponent<HorrorLightFlicker>();
     }
 

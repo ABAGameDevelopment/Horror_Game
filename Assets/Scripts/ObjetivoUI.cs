@@ -3,7 +3,6 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.InputSystem;
 
 public class ObjetivoUI : MonoBehaviour
 {
@@ -62,7 +61,7 @@ public class ObjetivoUI : MonoBehaviour
         textoTitulo.maxVisibleCharacters = 0;
         textoDescripcion.maxVisibleCharacters = 0;
 
-        textoCasilla.text = "☐";
+        textoCasilla.text = "\u25A1";
         textoObjetivo.text = "Busca las llaves de la salida";
 
         grupoTutorialLinterna.alpha = 0f;

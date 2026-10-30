@@ -62,6 +62,8 @@ public class Level2ItemPickup : MonoBehaviour
     {
         if (recogido) return;
 
+        if (LevelStateManager.Instance != null && !LevelStateManager.Instance.JuegoActivo) return;
+
         if (rotarEnSitio)
         {
             transform.Rotate(Vector3.up, velocidadRotacion * Time.deltaTime, Space.World);

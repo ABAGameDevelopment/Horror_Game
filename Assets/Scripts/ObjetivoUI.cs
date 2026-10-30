@@ -35,15 +35,28 @@ public class ObjetivoUI : MonoBehaviour
     [SerializeField] private TMP_Text textoTutorialLinterna;
     [SerializeField] private float duracionDesvanecerTutorial = 0.8f;
 
+    [Header("Notas del edificio")]
+    [SerializeField] private int totalNotas = 3;
+    [SerializeField] private GameObject[] notasEdificio;
+    [SerializeField] private GameObject llaveSalida;
+
+    [Header("Final del nivel")]
+    [SerializeField] private NivelCompletado nivelCompletado;
+
+    private int notasEncontradas;
+    private bool llaveSalidaEncontrada;
+
+
     private bool linternaEncendidaPorPrimeraVez;
-    private Coroutine corrutinaDesvanecerTutorial;
+    private bool objetivoAuditorioActivado;
+    private bool objetivoSalidaActivado;
 
     private Vector3 posicionInicial;
     private Vector3 escalaInicial;
 
     private void Start()
     {
-        // Guardar la posicion y escala iniciales.
+        // Guardar posicion y escala iniciales.
         posicionInicial = panelNuevoObjetivo.position;
         escalaInicial = panelNuevoObjetivo.localScale;
 
@@ -56,17 +69,19 @@ public class ObjetivoUI : MonoBehaviour
 
         // Configurar los textos.
         textoTitulo.text = "NUEVO OBJETIVO";
-        textoDescripcion.text = "Busca las llaves de la salida";
+        textoDescripcion.text = "Encuentra la llave y dirígete al auditorio.";
 
         textoTitulo.maxVisibleCharacters = 0;
         textoDescripcion.maxVisibleCharacters = 0;
 
-        textoCasilla.text = "\u25A1";
-        textoObjetivo.text = "Busca las llaves de la salida";
+        textoCasilla.text = "□";
+        textoObjetivo.text = "Encuentra la llave y dirígete al auditorio.";
 
+        // Preparar el tutorial de la linterna.
         grupoTutorialLinterna.alpha = 0f;
         panelTutorialLinterna.gameObject.SetActive(false);
 
+        // Suscribirse al evento de encendido de la linterna.
         if (playerController != null)
         {
             playerController.LinternaEncendidaPorPrimeraVez
@@ -78,16 +93,26 @@ public class ObjetivoUI : MonoBehaviour
 
     private IEnumerator SecuenciaObjetivo()
     {
-        // Esperar a que termine la cinematica.
+        // 1. Esperar a que termine la cinematica.
         while (introNivel != null &&
                !introNivel.IntroduccionTerminada)
         {
             yield return null;
         }
 
-        // Asegurar que el panel comienza en el centro.
+        // 2. Mostrar el tutorial y esperar a que encienda la linterna.
+        yield return StartCoroutine(MostrarTutorialLinterna());
+
+        // 3. Mostrar el nuevo objetivo.
+        panelNuevoObjetivo.gameObject.SetActive(true);
+
         panelNuevoObjetivo.position = posicionInicial;
         panelNuevoObjetivo.localScale = escalaInicial;
+
+        grupoNuevoObjetivo.alpha = 0f;
+
+        textoTitulo.maxVisibleCharacters = 0;
+        textoDescripcion.maxVisibleCharacters = 0;
 
         // Aparecer gradualmente.
         yield return StartCoroutine(
@@ -116,22 +141,17 @@ public class ObjetivoUI : MonoBehaviour
         panelObjetivoHUD.gameObject.SetActive(true);
         grupoObjetivoHUD.alpha = 0f;
 
-        // Guardar el centro exacto del objetivo permanente.
         Vector3 posicionFinal = panelObjetivoHUD.position;
 
-        // Mover el mensaje hacia el HUD.
-
-        // Mover el mensaje hacia el HUD.
+        // Preparar el movimiento.
         float tiempo = 0f;
+
         Vector3 origen = panelNuevoObjetivo.position;
         Vector3 escalaFinal = escalaInicial * 0.65f;
 
-        // El HUD comienza invisible.
-        grupoObjetivoHUD.alpha = 0f;
-
-        // Porcentaje del movimiento en el que comienza a desaparecer.
         float inicioDesvanecimiento = 0.75f;
 
+        // Mover el mensaje hacia el HUD.
         while (tiempo < duracionMovimiento)
         {
             tiempo += Time.deltaTime;
@@ -159,8 +179,8 @@ public class ObjetivoUI : MonoBehaviour
             if (progreso >= inicioDesvanecimiento)
             {
                 float progresoDesvanecimiento =
-                    (progreso - inicioDesvanecimiento)
-                    / (1f - inicioDesvanecimiento);
+                    (progreso - inicioDesvanecimiento) /
+                    (1f - inicioDesvanecimiento);
 
                 grupoNuevoObjetivo.alpha = Mathf.Lerp(
                     1f,
@@ -169,13 +189,12 @@ public class ObjetivoUI : MonoBehaviour
                 );
             }
 
-            // El objetivo fijo aparece al mismo tiempo.
-            // Empieza al final del movimiento para evitar la superposicion.
+            // Mostrar el objetivo fijo al mismo tiempo.
             if (progreso >= inicioDesvanecimiento)
             {
                 float progresoHUD =
-                    (progreso - inicioDesvanecimiento)
-                    / (1f - inicioDesvanecimiento);
+                    (progreso - inicioDesvanecimiento) /
+                    (1f - inicioDesvanecimiento);
 
                 grupoObjetivoHUD.alpha = Mathf.Lerp(
                     0f,
@@ -187,7 +206,7 @@ public class ObjetivoUI : MonoBehaviour
             yield return null;
         }
 
-        // Finalizar las animaciones sin dejar restos visibles.
+        // Finalizar las animaciones.
         panelNuevoObjetivo.position = posicionFinal;
         panelNuevoObjetivo.localScale = escalaFinal;
 
@@ -196,9 +215,66 @@ public class ObjetivoUI : MonoBehaviour
 
         // Ocultar el mensaje central.
         panelNuevoObjetivo.gameObject.SetActive(false);
+    }
 
-        // Mostrar la indicacion de la linterna al terminar el objetivo.
-        MostrarTutorialLinterna();
+    private IEnumerator MostrarTutorialLinterna()
+    {
+        // Elegir el texto segun el control utilizado.
+        bool usaGamepad =
+            Gamepad.current != null &&
+            (Keyboard.current == null ||
+             Gamepad.current.lastUpdateTime >
+             Keyboard.current.lastUpdateTime);
+
+        if (usaGamepad)
+        {
+            textoTutorialLinterna.text =
+                "Presiona Y para encender la linterna";
+        }
+        else
+        {
+            textoTutorialLinterna.text =
+                "Presiona F para encender la linterna";
+        }
+
+        // Mostrar el panel.
+        panelTutorialLinterna.gameObject.SetActive(true);
+        grupoTutorialLinterna.alpha = 0f;
+
+        // Aparecer gradualmente.
+        yield return StartCoroutine(
+            Desvanecer(
+                grupoTutorialLinterna,
+                0f,
+                1f,
+                duracionAparicion
+            )
+        );
+
+        // Esperar hasta que el jugador encienda la linterna.
+        // Si ya la encendio antes, no se queda esperando.
+        while (!linternaEncendidaPorPrimeraVez)
+        {
+            yield return null;
+        }
+
+        // Desaparecer gradualmente.
+        yield return StartCoroutine(
+            Desvanecer(
+                grupoTutorialLinterna,
+                grupoTutorialLinterna.alpha,
+                0f,
+                duracionDesvanecerTutorial
+            )
+        );
+
+        panelTutorialLinterna.gameObject.SetActive(false);
+    }
+
+    private void AlEncenderLinterna()
+    {
+        // Registrar que la linterna ya fue encendida.
+        linternaEncendidaPorPrimeraVez = true;
     }
 
     private IEnumerator EscribirGradualmente(TMP_Text texto)
@@ -206,6 +282,7 @@ public class ObjetivoUI : MonoBehaviour
         texto.ForceMeshUpdate();
 
         int totalCaracteres = texto.textInfo.characterCount;
+
         texto.maxVisibleCharacters = 0;
 
         float caracteresMostrados = 0f;
@@ -256,78 +333,316 @@ public class ObjetivoUI : MonoBehaviour
         grupo.alpha = fin;
     }
 
-
-    private void MostrarTutorialLinterna()
+    private void OnDestroy()
     {
-        // Elegir el texto segun el esquema de control activo.
-        bool usaGamepad =
-            Gamepad.current != null &&
-            (Keyboard.current == null ||
-            Gamepad.current.lastUpdateTime >
-            Keyboard.current.lastUpdateTime);
-
-        if (usaGamepad)
+        // Quitar la suscripcion al evento.
+        if (playerController != null)
         {
-            textoTutorialLinterna.text =
-                "Presiona Y para encender / apagar la linterna";
+            playerController.LinternaEncendidaPorPrimeraVez
+                -= AlEncenderLinterna;
         }
-        else
+    }
+
+    public void CompletarObjetivoAuditorio()
+    {
+        // Evitar activar el objetivo varias veces.
+        if (objetivoAuditorioActivado)
+            return;
+
+        objetivoAuditorioActivado = true;
+
+        // Activar las notas del auditorio.
+        foreach (GameObject nota in notasEdificio)
         {
-            textoTutorialLinterna.text =
-                "Presiona F para encender / apagar la linterna";
+            if (nota != null)
+            {
+                nota.SetActive(true);
+            }
         }
 
-        panelTutorialLinterna.gameObject.SetActive(true);
-        grupoTutorialLinterna.alpha = 0f;
+        Debug.Log("Auditorio abierto. Las notas ya están disponibles.");
 
-        StartCoroutine(
+        // Mostrar el nuevo objetivo.
+        StartCoroutine(MostrarNuevoObjetivoAuditorio());
+    }
+
+    private IEnumerator MostrarNuevoObjetivoAuditorio()
+    {
+        // Preparar el mensaje central.
+        panelNuevoObjetivo.gameObject.SetActive(true);
+
+        panelNuevoObjetivo.position = posicionInicial;
+        panelNuevoObjetivo.localScale = escalaInicial;
+
+        grupoNuevoObjetivo.alpha = 0f;
+
+        textoTitulo.text = "NUEVO OBJETIVO";
+        textoDescripcion.text = "Encuentra las 3 notas del Edificio";
+
+        textoTitulo.maxVisibleCharacters = 0;
+        textoDescripcion.maxVisibleCharacters = 0;
+
+        // Mostrar el mensaje.
+        yield return StartCoroutine(
             Desvanecer(
-                grupoTutorialLinterna,
+                grupoNuevoObjetivo,
                 0f,
                 1f,
                 duracionAparicion
             )
         );
 
-        // Si ya encendio la linterna antes de que apareciera el tutorial,
-        // mostrarlo y retirarlo suavemente.
-        if (linternaEncendidaPorPrimeraVez)
+        yield return StartCoroutine(
+            EscribirGradualmente(textoTitulo)
+        );
+
+        yield return StartCoroutine(
+            EscribirGradualmente(textoDescripcion)
+        );
+
+        yield return new WaitForSeconds(tiempoVisible);
+
+        // Obtener la posicion del HUD.
+        Vector3 posicionFinal = panelObjetivoHUD.position;
+
+        Vector3 origen = panelNuevoObjetivo.position;
+        Vector3 escalaFinal = escalaInicial * 0.65f;
+
+        float tiempo = 0f;
+        float inicioDesvanecimiento = 0.75f;
+
+        // Desplazar el mensaje hacia el HUD.
+        while (tiempo < duracionMovimiento)
         {
-            AlEncenderLinterna();
+            tiempo += Time.deltaTime;
+
+            float progreso = Mathf.Clamp01(
+                tiempo / duracionMovimiento
+            );
+
+            float t = Mathf.SmoothStep(0f, 1f, progreso);
+
+            panelNuevoObjetivo.position = Vector3.Lerp(
+                origen,
+                posicionFinal,
+                t
+            );
+
+            panelNuevoObjetivo.localScale = Vector3.Lerp(
+                escalaInicial,
+                escalaFinal,
+                t
+            );
+
+            if (progreso >= inicioDesvanecimiento)
+            {
+                float progresoDesvanecimiento =
+                    (progreso - inicioDesvanecimiento) /
+                    (1f - inicioDesvanecimiento);
+
+                grupoNuevoObjetivo.alpha = Mathf.Lerp(
+                    1f,
+                    0f,
+                    progresoDesvanecimiento
+                );
+            }
+
+            yield return null;
         }
+
+        // Finalizar animacion.
+        panelNuevoObjetivo.position = posicionFinal;
+        panelNuevoObjetivo.localScale = escalaFinal;
+
+        grupoNuevoObjetivo.alpha = 0f;
+
+        panelNuevoObjetivo.gameObject.SetActive(false);
+
+        // Actualizar el HUD:
+        // primer objetivo completado y segundo objetivo pendiente.
+        textoCasilla.text = "-\n□";
+
+        textoObjetivo.text =
+            "Encuentra la llave y dirígete al auditorio.\n" +
+            "Encuentra las 3 notas del Edificio";
     }
 
-    private void AlEncenderLinterna()
+    private IEnumerator MostrarNuevoObjetivoSalida()
     {
-        if (linternaEncendidaPorPrimeraVez)
-            return;
+        // Preparar el mensaje central.
+        panelNuevoObjetivo.gameObject.SetActive(true);
 
-        linternaEncendidaPorPrimeraVez = true;
+        panelNuevoObjetivo.position = posicionInicial;
+        panelNuevoObjetivo.localScale = escalaInicial;
 
-        if (panelTutorialLinterna == null ||
-            !panelTutorialLinterna.gameObject.activeInHierarchy)
-            return;
+        grupoNuevoObjetivo.alpha = 0f;
 
-        if (corrutinaDesvanecerTutorial != null)
-            StopCoroutine(corrutinaDesvanecerTutorial);
+        textoTitulo.text = "NUEVO OBJETIVO";
+        textoDescripcion.text = "Encuentra la llave de la salida y escapa del edificio.";
 
-        corrutinaDesvanecerTutorial =
-            StartCoroutine(DesvanecerYOcultarTutorial());
-    }
+        textoTitulo.maxVisibleCharacters = 0;
+        textoDescripcion.maxVisibleCharacters = 0;
 
-    private IEnumerator DesvanecerYOcultarTutorial()
-    {
+        // Mostrar el mensaje.
         yield return StartCoroutine(
             Desvanecer(
-                grupoTutorialLinterna,
-                grupoTutorialLinterna.alpha,
+                grupoNuevoObjetivo,
                 0f,
-                duracionDesvanecerTutorial
+                1f,
+                duracionAparicion
             )
         );
 
-        panelTutorialLinterna.gameObject.SetActive(false);
-        corrutinaDesvanecerTutorial = null;
+        yield return StartCoroutine(
+            EscribirGradualmente(textoTitulo)
+        );
+
+        yield return StartCoroutine(
+            EscribirGradualmente(textoDescripcion)
+        );
+
+        yield return new WaitForSeconds(tiempoVisible);
+
+        // Obtener la posición del HUD.
+        Vector3 posicionFinal = panelObjetivoHUD.position;
+
+        Vector3 origen = panelNuevoObjetivo.position;
+        Vector3 escalaFinal = escalaInicial * 0.65f;
+
+        float tiempo = 0f;
+        float inicioDesvanecimiento = 0.75f;
+
+        // Mover el mensaje hacia el HUD.
+        while (tiempo < duracionMovimiento)
+        {
+            tiempo += Time.deltaTime;
+
+            float progreso = Mathf.Clamp01(
+                tiempo / duracionMovimiento
+            );
+
+            float t = Mathf.SmoothStep(0f, 1f, progreso);
+
+            panelNuevoObjetivo.position = Vector3.Lerp(
+                origen,
+                posicionFinal,
+                t
+            );
+
+            panelNuevoObjetivo.localScale = Vector3.Lerp(
+                escalaInicial,
+                escalaFinal,
+                t
+            );
+
+            if (progreso >= inicioDesvanecimiento)
+            {
+                float progresoDesvanecimiento =
+                    (progreso - inicioDesvanecimiento) /
+                    (1f - inicioDesvanecimiento);
+
+                grupoNuevoObjetivo.alpha = Mathf.Lerp(
+                    1f,
+                    0f,
+                    progresoDesvanecimiento
+                );
+            }
+
+            yield return null;
+        }
+
+        // Finalizar animación.
+        panelNuevoObjetivo.position = posicionFinal;
+        panelNuevoObjetivo.localScale = escalaFinal;
+
+        grupoNuevoObjetivo.alpha = 0f;
+
+        panelNuevoObjetivo.gameObject.SetActive(false);
+
+        // Actualizar el HUD con el nuevo objetivo.
+        textoCasilla.text = "-\n-\n□";
+
+        textoObjetivo.text =
+            "Encuentra la llave y dirígete al auditorio.\n" +
+            "Encuentra las 3 notas del edificio (3/3).\n" +
+            "Encuentra la llave de la salida y escapa del edificio.";
     }
 
+    public void RegistrarNotaEncontrada()
+    {
+        if (!objetivoAuditorioActivado)
+            return;
+
+        if (notasEncontradas >= totalNotas)
+            return;
+
+        notasEncontradas++;
+
+        if (notasEncontradas >= totalNotas)
+        {
+            notasEncontradas = totalNotas;
+
+            textoCasilla.text = "-\n-";
+
+            textoObjetivo.text =
+                "Encuentra la llave y dirígete al auditorio.\n" +
+                "Encuentra las 3 notas del edificio (3/3)";
+
+            Debug.Log("¡Has encontrado las tres notas!");
+
+            // Activar la llave de salida.
+            if (llaveSalida != null)
+            {
+                llaveSalida.SetActive(true);
+            }
+
+            // Activar el siguiente objetivo.
+            if (!objetivoSalidaActivado)
+            {
+                objetivoSalidaActivado = true;
+                StartCoroutine(MostrarNuevoObjetivoSalida());
+            }
+
+        }
+        else
+        {
+            textoCasilla.text = "-\n□";
+
+            textoObjetivo.text =
+                "Encuentra la llave y dirígete al auditorio.\n" +
+                $"Encuentra las 3 notas del edificio ({notasEncontradas}/{totalNotas})";
+        }
+    }
+
+    public void RegistrarLlaveSalidaEncontrada()
+    {
+        if (llaveSalidaEncontrada)
+            return;
+
+        // Evitar registrar la llave antes de encontrar las notas.
+        if (notasEncontradas < totalNotas)
+            return;
+
+        llaveSalidaEncontrada = true;
+
+        // Actualizar el HUD.
+        textoCasilla.text = "-\n-\n□";
+
+        textoObjetivo.text =
+            "Encuentra la llave y dirígete al auditorio.\n" +
+            $"Encuentra las 3 notas del edificio ({totalNotas}/{totalNotas}).\n" +
+            "Sal del edificio.";
+
+        Debug.Log("¡Has encontrado la llave de salida!");
+    }
+
+    public void CompletarObjetivoFinal()
+    {
+        Debug.Log("¡El jugador ha escapado del edificio!");
+
+        if (nivelCompletado != null)
+        {
+            nivelCompletado.IniciarFinal();
+        }
+    }
 }

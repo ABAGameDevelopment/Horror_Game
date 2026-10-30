@@ -22,6 +22,9 @@ public class GameManager : MonoBehaviour
     public float MusicaVolumen   => PlayerPrefs.GetFloat("MusicaVol",  0.8f);
     public float EfectosVolumen  => PlayerPrefs.GetFloat("EfectosVol", 1.0f);
     public int   CalidadGrafica  => PlayerPrefs.GetInt("Calidad",      3);
+    public int   NivelDesbloqueado => SaveManager.NivelDesbloqueado;
+
+    public bool  NivelCompletado(string nivel) => SaveManager.NivelCompletado(nivel);
 
     // -----------------------------------------------------------------------
     private void Awake()

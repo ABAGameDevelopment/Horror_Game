@@ -35,6 +35,8 @@ public class CarEscapeController : MonoBehaviour
     private string promptActual = "";
     private string mensajeFlotante = "";
     private float tiempoMensaje = 0f;
+    private string promptExterno = "";
+    private float tiempoPromptExterno = -10f;
 
     public bool CofreAbierto => cofreAbierto;
     public bool EstaListoParaArrancar => bateriaInstalada && aceiteLlenado && gasolinaCargada && tieneLlaves;
@@ -43,6 +45,14 @@ public class CarEscapeController : MonoBehaviour
     public bool TieneAceite => tieneAceite;
     public bool TieneGasolina => tieneGasolina;
     public bool TieneLlaves => tieneLlaves;
+    public bool BateriaInstalada => bateriaInstalada;
+    public bool AceiteLlenado => aceiteLlenado;
+    public bool GasolinaCargada => gasolinaCargada;
+    public bool EscapeIniciado => escapeIniciado;
+    public string PromptActual => promptActual;
+    public string MensajeFlotante => mensajeFlotante;
+
+    public bool UsarUIExterna { get; set; }
 
     private void Awake()
     {
@@ -269,6 +279,8 @@ public class CarEscapeController : MonoBehaviour
     {
         if (escapeIniciado) return;
 
+        if (LevelStateManager.Instance != null && !LevelStateManager.Instance.JuegoActivo) return;
+
         if (playerTransform == null)
         {
             GameObject player = GameObject.FindWithTag("Player");
@@ -373,6 +385,9 @@ public class CarEscapeController : MonoBehaviour
                 promptActual = faltan.ToString();
             }
         }
+
+        if (string.IsNullOrEmpty(promptActual) && !string.IsNullOrEmpty(promptExterno) && Time.time - tiempoPromptExterno <= 0.15f)
+            promptActual = promptExterno;
     }
 
     public void AbrirCofre()
@@ -414,6 +429,9 @@ public class CarEscapeController : MonoBehaviour
         if (bateriaInstalada) return;
         bateriaInstalada = true;
 
+        if (LevelStateManager.Instance != null)
+            LevelStateManager.Instance.AgregarPuntaje(150);
+
         if (modeloBateriaMotor != null)
         {
             modeloBateriaMotor.SetActive(true);
@@ -429,6 +447,9 @@ public class CarEscapeController : MonoBehaviour
         if (aceiteLlenado) return;
         aceiteLlenado = true;
 
+        if (LevelStateManager.Instance != null)
+            LevelStateManager.Instance.AgregarPuntaje(150);
+
         ReproducirSonidoProcedural(TipoSonido.Liquido);
         MostrarMensajeFlotante("¡Aceite de motor vertido en el depósito! [✓]", 3.5f);
         VerificarListoParaArrancar();
@@ -438,6 +459,9 @@ public class CarEscapeController : MonoBehaviour
     {
         if (gasolinaCargada) return;
         gasolinaCargada = true;
+
+        if (LevelStateManager.Instance != null)
+            LevelStateManager.Instance.AgregarPuntaje(150);
 
         ReproducirSonidoProcedural(TipoSonido.Liquido);
         MostrarMensajeFlotante("¡Tanque de gasolina abastecido al máximo! [✓]", 3.5f);
@@ -455,6 +479,9 @@ public class CarEscapeController : MonoBehaviour
     public void RegistrarItemRecogido(TipoItemLevel2 tipo)
     {
         ReproducirSonidoProcedural(TipoSonido.CampanaItem);
+
+        if (LevelStateManager.Instance != null)
+            LevelStateManager.Instance.AgregarPuntaje(100);
 
         switch (tipo)
         {
@@ -487,16 +514,17 @@ public class CarEscapeController : MonoBehaviour
 
     public void SetPromptExterno(string prompt)
     {
-        if (string.IsNullOrEmpty(promptActual))
-        {
-            promptActual = prompt;
-        }
+        promptExterno = prompt;
+        tiempoPromptExterno = Time.time;
     }
 
     public void IniciarSecuenciaEscape()
     {
         if (escapeIniciado) return;
         escapeIniciado = true;
+
+        if (LevelStateManager.Instance != null)
+            LevelStateManager.Instance.AgregarPuntaje(500);
 
         MostrarMensajeFlotante("¡MOTOR EN MARCHA! Derribando portón de salida...", 5f);
         ReproducirSonidoProcedural(TipoSonido.EscapeMotor);
@@ -528,11 +556,15 @@ public class CarEscapeController : MonoBehaviour
             yield return null;
         }
 
-        MostrarMensajeFlotante("¡¡HAS ESCAPADO DE LA CRIATURA!! NIVEL 2 COMPLETADO", 8f);
+        MostrarMensajeFlotante("¡¡HAS ESCAPADO DEL ESTACIONAMIENTO!! NIVEL 2 COMPLETADO", 8f);
+
+        if (LevelStateManager.Instance != null)
+            LevelStateManager.Instance.CompletarNivel();
     }
 
     private void OnGUI()
     {
+        if (UsarUIExterna) return;
         // 1. Mensaje de interacción en el centro de la pantalla
         if (!string.IsNullOrEmpty(promptActual))
         {

@@ -83,6 +83,8 @@ public class DoorInteractable : MonoBehaviour
             InitializeHinge();
         }
 
+        if (LevelStateManager.Instance != null && !LevelStateManager.Instance.JuegoActivo) return;
+
         if (playerTransform == null)
         {
             if (Camera.main != null)

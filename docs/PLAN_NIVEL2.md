@@ -24,20 +24,30 @@ los 4 estados obligatorios, HUD, audio y una cadena de objetivos completa.
 - [x] Build de prueba para validar que compila (batchmode, 0 errores de compilación).
 - **Entregable:** rama lista + build base funcional.
 
-## Fase 1 — Sistemas base compartidos (30 oct – 2 nov)
+## Fase 1 — Sistemas base compartidos (30 oct – 2 nov) — COMPLETADA
 
-Scripts nuevos en `Assets/Scripts/`:
+Scripts nuevos en `Assets/Scripts/LevelSystem/`:
 
-- `LevelStateManager.cs`: estados Jugar / Pausado / Fin del Nivel / Game Over.
-- `HUDController.cs`: salud, puntaje, tiempo, objetivos e inventario.
-- `PauseMenuController.cs`: Reanudar, Reiniciar, Opciones, Salir.
-- `LevelCompleteController.cs`: victoria con puntaje, tiempo y siguiente nivel.
-- `GameOverController.cs`: reintentar o menú.
-- `SaveManager.cs`: progreso/nivel desbloqueado con `PlayerPrefs` (integrado a `Menu/GameManager.cs`).
-- Integrar HUD y estados en el Nivel 2 con estilo TMP igual al `ObjetivoUI` del Nivel 1.
+- [x] `LevelStateManager.cs`: estados Jugar / Pausado / Fin del Nivel / Game Over, tiempo y puntaje.
+- [x] `HUDController.cs`: salud, puntaje, tiempo, objetivos e inventario con TMP.
+- [x] `PauseMenuController.cs`: Reanudar, Reiniciar, Opciones (volumen) y Salir.
+- [x] `LevelCompleteController.cs`: victoria con puntaje, tiempo, récord y siguiente nivel.
+- [x] `GameOverController.cs`: reintentar o menú.
+- [x] `SaveManager.cs`: progreso/nivel desbloqueado con `PlayerPrefs` (integrado a `Menu/GameManager.cs`).
+- [x] `PlayerHealth.cs`: salud, daño, curación y evento de muerte.
+- [x] `RuntimeUI.cs`: fábrica de canvas, paneles, textos, botones y sliders uGUI/TMP.
+- [x] `Level2Bootstrap.cs`: crea los sistemas al cargar la escena `Level2`.
+- [x] Integrar HUD y estados en el Nivel 2 con estilo TMP igual al `ObjetivoUI` del Nivel 1.
+- [x] `CarEscapeController`: expone progreso, desactiva su `OnGUI` cuando el HUD está activo,
+      otorga puntaje y completa el nivel al escapar.
+- [x] `Level2ItemPickup`: se detiene de forma segura durante la pausa.
+- [x] Compilación batchmode validada: 0 errores.
 
 **Aceptación:** los 4 estados funcionan, la pausa detiene el juego, puntaje/tiempo se actualizan,
 HUD adaptable.
+
+**Pendiente para Fase 2:** conectar un peligro ambiental o temporizador que dispare Game Over
+(sin enemigo/IA).
 
 **Rúbrica:** 20 pts (niveles y estados) + parte de 15 pts (HUD).
 
@@ -115,6 +125,7 @@ Ampliar `Level2SceneryBuilder.cs` con:
 
 ## Decisiones pendientes
 
-1. ¿El Nivel 2 debe quedar como escena dedicada o seguimos usando la copia de `University`?
+1. ~~¿El Nivel 2 debe quedar como escena dedicada o seguimos usando la copia de `University`?~~
+   Resuelto: escena dedicada `Assets/Scenes/Level2/Level2.unity` (la copia `University.unity` no se toca).
 2. ¿Hay assets de audio/modelos con licencia o se generan placeholders?
 3. El enemigo/IA queda en pausa hasta tener el asset definitivo.

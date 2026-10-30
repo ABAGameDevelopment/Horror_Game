@@ -21,8 +21,7 @@ los 4 estados obligatorios, HUD, audio y una cadena de objetivos completa.
 - [x] Crear rama, commit base y tag de respaldo.
 - [x] Auditar `Level2.unity` y el builder; confirmar que no se toca nada de enemigo.
 - [x] Agregar `Level2` a `ProjectSettings/EditorBuildSettings.asset`.
-- [ ] Build de prueba para validar que compila. *(pendiente: el editor de Unity está abierto;
-  cerrarlo para poder compilar por batchmode)*
+- [x] Build de prueba para validar que compila (batchmode, 0 errores de compilación).
 - **Entregable:** rama lista + build base funcional.
 
 ## Fase 1 — Sistemas base compartidos (30 oct – 2 nov)

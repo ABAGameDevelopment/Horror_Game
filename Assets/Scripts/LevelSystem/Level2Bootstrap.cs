@@ -15,10 +15,24 @@ public static class Level2Bootstrap
 
     private static void AlCargarEscena(Scene escena, LoadSceneMode modo)
     {
-        if (escena.name != EscenaNivel2)
+        if (!EsNivel2(escena))
             return;
 
         CrearSistemas();
+    }
+
+    private static bool EsNivel2(Scene escena)
+    {
+        if (escena.name == EscenaNivel2)
+            return true;
+
+        foreach (GameObject raiz in escena.GetRootGameObjects())
+        {
+            if (raiz.GetComponentInChildren<CarEscapeController>(true) != null)
+                return true;
+        }
+
+        return false;
     }
 
     private static void CrearSistemas()
@@ -34,6 +48,8 @@ public static class Level2Bootstrap
         sistemas.AddComponent<GameOverController>();
 
         AsegurarSaludJugador();
+
+        Debug.Log("[Nivel 2] Sistemas de estado, HUD y menús iniciados en la escena " + SceneManager.GetActiveScene().name + ".");
     }
 
     private static void AsegurarSaludJugador()

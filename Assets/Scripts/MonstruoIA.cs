@@ -192,6 +192,9 @@ public class MonstruoIA : MonoBehaviour
 
     private void DetectarJugador()
     {
+        if (CarEscapeController.EstaEscondidoBajoAuto)
+            return;
+
         Vector3 origen = puntoVision != null
             ? puntoVision.position
             : transform.position + Vector3.up * 1.5f;
@@ -233,6 +236,17 @@ public class MonstruoIA : MonoBehaviour
 
     private void Perseguir()
     {
+        if (CarEscapeController.EstaEscondidoBajoAuto)
+        {
+            // El jugador se metió debajo del auto mientras era perseguido.
+            // Si transcurre el tiempo de búsqueda sin verlo, el monstruo desiste y regresa a merodear.
+            if (Time.time - ultimoTiempoVisto > tiempoBusqueda)
+            {
+                VolverAMerodear();
+            }
+            return;
+        }
+
         agente.SetDestination(jugador.position);
 
         if (PuedeVerJugador())
@@ -263,6 +277,9 @@ public class MonstruoIA : MonoBehaviour
 
     private bool PuedeVerJugador()
     {
+        if (CarEscapeController.EstaEscondidoBajoAuto)
+            return false;
+
         Vector3 origen = puntoVision != null
             ? puntoVision.position
             : transform.position + Vector3.up * 1.5f;
@@ -294,7 +311,7 @@ public class MonstruoIA : MonoBehaviour
 
     private void CapturarJugador()
     {
-        if (capturado)
+        if (capturado || CarEscapeController.EstaEscondidoBajoAuto)
             return;
 
         capturado = true;

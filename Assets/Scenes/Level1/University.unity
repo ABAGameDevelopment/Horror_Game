@@ -39222,7 +39222,7 @@ MonoBehaviour:
   panelOscuro: {fileID: 1125998220}
   panelMuerte: {fileID: 983064885}
   duracionDesvanecimiento: 1.5
-  escenaMenuPrincipal: MenuPrincipal
+  escenaMenuPrincipal: MainMenu
   escenaReintentar: University
 --- !u!1001 &1232754863
 PrefabInstance:

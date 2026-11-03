@@ -19030,39 +19030,39 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4689083990643298, guid: 1aaf3ef80841d9c4990a27fee328eb1c, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -9.303162
+      value: -9.303619
       objectReference: {fileID: 0}
     - target: {fileID: 4689083990643298, guid: 1aaf3ef80841d9c4990a27fee328eb1c, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -0.1
+      value: -0.09931183
       objectReference: {fileID: 0}
     - target: {fileID: 4689083990643298, guid: 1aaf3ef80841d9c4990a27fee328eb1c, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -3.7730713
+      value: -3.6942444
       objectReference: {fileID: 0}
     - target: {fileID: 4689083990643298, guid: 1aaf3ef80841d9c4990a27fee328eb1c, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 1
+      value: 0.9998097
       objectReference: {fileID: 0}
     - target: {fileID: 4689083990643298, guid: 1aaf3ef80841d9c4990a27fee328eb1c, type: 3}
       propertyPath: m_LocalRotation.x
-      value: -0
+      value: -0.008726445
       objectReference: {fileID: 0}
     - target: {fileID: 4689083990643298, guid: 1aaf3ef80841d9c4990a27fee328eb1c, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0
+      value: -0.01745085
       objectReference: {fileID: 0}
     - target: {fileID: 4689083990643298, guid: 1aaf3ef80841d9c4990a27fee328eb1c, type: 3}
       propertyPath: m_LocalRotation.z
-      value: -0
+      value: -0.0001523129
       objectReference: {fileID: 0}
     - target: {fileID: 4689083990643298, guid: 1aaf3ef80841d9c4990a27fee328eb1c, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
+      value: -1
       objectReference: {fileID: 0}
     - target: {fileID: 4689083990643298, guid: 1aaf3ef80841d9c4990a27fee328eb1c, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
+      value: -2
       objectReference: {fileID: 0}
     - target: {fileID: 4689083990643298, guid: 1aaf3ef80841d9c4990a27fee328eb1c, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
@@ -39222,7 +39222,7 @@ MonoBehaviour:
   panelOscuro: {fileID: 1125998220}
   panelMuerte: {fileID: 983064885}
   duracionDesvanecimiento: 1.5
-  escenaMenuPrincipal: MenuPrincipal
+  escenaMenuPrincipal: MainMenu
   escenaReintentar: University
 --- !u!1001 &1232754863
 PrefabInstance:
@@ -69568,9 +69568,9 @@ MonoBehaviour:
   - {fileID: 1242174803}
   - {fileID: 1458464287}
   muerteJugador: {fileID: 1232593753}
-  velocidadPatrulla: 1.8
-  velocidadPersecucion: 6
-  distanciaVision: 8
+  velocidadPatrulla: 1
+  velocidadPersecucion: 2
+  distanciaVision: 3
   anguloVision: 100
   obstaculos:
     serializedVersion: 2

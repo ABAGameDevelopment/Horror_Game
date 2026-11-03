@@ -46,6 +46,7 @@ public static class Level2Bootstrap
         sistemas.AddComponent<PauseMenuController>();
         sistemas.AddComponent<LevelCompleteController>();
         sistemas.AddComponent<GameOverController>();
+        sistemas.AddComponent<TituloIntroNivel2>();
 
         AsegurarSaludJugador();
 

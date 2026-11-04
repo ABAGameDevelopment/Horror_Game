@@ -1,4 +1,4 @@
-﻿
+
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
@@ -33,7 +33,7 @@ public class MuerteJugador : MonoBehaviour
     [SerializeField] private float duracionDesvanecimiento = 1.5f;
 
     [Header("Escenas")]
-    [SerializeField] private string escenaMenuPrincipal = "MenuPrincipal";
+    [SerializeField] private string escenaMenuPrincipal = "MainMenu";
     [SerializeField] private string escenaReintentar = "Nivel1";
 
     private bool muerteIniciada;
@@ -180,7 +180,12 @@ public class MuerteJugador : MonoBehaviour
     public void IrAlMenuPrincipal()
     {
         Time.timeScale = 1f;
-        SceneManager.LoadScene(escenaMenuPrincipal);
+        string nombreEscena = escenaMenuPrincipal;
+        if (string.IsNullOrEmpty(nombreEscena) || nombreEscena == "MenuPrincipal")
+        {
+            nombreEscena = "MainMenu";
+        }
+        SceneManager.LoadScene(nombreEscena);
     }
 
     public void Reintentar()

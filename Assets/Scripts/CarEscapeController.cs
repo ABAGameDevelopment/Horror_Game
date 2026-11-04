@@ -61,6 +61,14 @@ public class CarEscapeController : MonoBehaviour
     public string PromptActual => promptActual;
     public string MensajeFlotante => mensajeFlotante;
 
+    [Header("Mecánica de Escondite")]
+    [SerializeField] private bool jugadorEscondido = false;
+    private bool enTransicionEscondite = false;
+    private Vector3 posicionSalidaEscondite;
+
+    public bool JugadorEscondido => jugadorEscondido;
+    public static bool EstaEscondidoBajoAuto => Instance != null && Instance.jugadorEscondido;
+
     public bool UsarUIExterna { get; set; }
 
     private void Awake()
@@ -141,6 +149,29 @@ public class CarEscapeController : MonoBehaviour
         {
             if (Gamepad.current.buttonSouth.wasPressedThisFrame ||
                 Gamepad.current.buttonWest.wasPressedThisFrame)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool TeclaEscondersePresionada()
+    {
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.cKey.wasPressedThisFrame ||
+                Keyboard.current.leftCtrlKey.wasPressedThisFrame)
+            {
+                return true;
+            }
+        }
+
+        if (Gamepad.current != null)
+        {
+            if (Gamepad.current.buttonEast.wasPressedThisFrame ||
+                Gamepad.current.rightStickButton.wasPressedThisFrame)
             {
                 return true;
             }
@@ -347,6 +378,16 @@ public class CarEscapeController : MonoBehaviour
             if (tiempoMensaje <= 0f) mensajeFlotante = "";
         }
 
+        if (jugadorEscondido)
+        {
+            promptActual = "[C] o [E] Salir de debajo del auto";
+            if (!enTransicionEscondite && (TeclaInteraccionPresionada() || TeclaEscondersePresionada()))
+            {
+                StartCoroutine(SalirDeDebajoDelAuto());
+            }
+            return;
+        }
+
         // Evaluar posiciones clave alrededor del auto
         Vector3 posFrenteCofre = transform.TransformPoint(new Vector3(0f, 0.6f, 2.3f));
         Vector3 posTanqueGasolina = transform.TransformPoint(new Vector3(-1.3f, 0.6f, -1.2f));
@@ -450,9 +491,95 @@ public class CarEscapeController : MonoBehaviour
                 promptActual = faltan.ToString();
             }
         }
+        // 4. ESCONDERSE DEBAJO DEL AUTO (DISPONIBLE ALREDEDOR DEL VEHÍCULO)
+        float distCentroAuto = Vector3.Distance(playerTransform.position, transform.position);
+        if (string.IsNullOrEmpty(promptActual) && distCentroAuto <= 3.4f)
+        {
+            promptActual = "[C] o [E] Esconderse debajo del auto";
+            if (!enTransicionEscondite && (TeclaEscondersePresionada() || teclaPresionada))
+            {
+                StartCoroutine(EsconderseBajoAuto());
+            }
+        }
+        else if (distCentroAuto <= 3.4f && TeclaEscondersePresionada() && !enTransicionEscondite)
+        {
+            StartCoroutine(EsconderseBajoAuto());
+        }
 
         if (string.IsNullOrEmpty(promptActual) && !string.IsNullOrEmpty(promptExterno) && Time.time - tiempoPromptExterno <= 0.15f)
             promptActual = promptExterno;
+    }
+
+    private IEnumerator EsconderseBajoAuto()
+    {
+        if (enTransicionEscondite || playerTransform == null) yield break;
+        enTransicionEscondite = true;
+
+        CharacterController cc = playerTransform.GetComponent<CharacterController>();
+        if (cc != null) cc.enabled = false;
+
+        posicionSalidaEscondite = playerTransform.position;
+
+        PlayerController pc = playerTransform.GetComponent<PlayerController>();
+        if (pc != null) pc.ApagarLinterna();
+
+        // Posición en el suelo bajo el centro del chasis del vehículo
+        Vector3 posDestinoBajoAuto = transform.TransformPoint(new Vector3(0f, 0.22f, -0.1f));
+
+        ReproducirSonidoProcedural(TipoSonido.CierrePuerta);
+        MostrarMensajeFlotante("¡Te has escondido debajo del auto! Quédate quieto...", 3.2f);
+
+        Vector3 posInicial = playerTransform.position;
+        float duracion = 0.55f;
+        float t = 0f;
+
+        while (t < duracion)
+        {
+            t += Time.deltaTime;
+            float factor = Mathf.SmoothStep(0f, 1f, t / duracion);
+            playerTransform.position = Vector3.Lerp(posInicial, posDestinoBajoAuto, factor);
+            yield return null;
+        }
+
+        playerTransform.position = posDestinoBajoAuto;
+        jugadorEscondido = true;
+        enTransicionEscondite = false;
+    }
+
+    private IEnumerator SalirDeDebajoDelAuto()
+    {
+        if (enTransicionEscondite || playerTransform == null) yield break;
+        enTransicionEscondite = true;
+
+        Vector3 posSalida = posicionSalidaEscondite;
+        float distSalida = Vector3.Distance(posSalida, transform.position);
+        if (distSalida > 4.5f || distSalida < 1.0f)
+        {
+            posSalida = transform.TransformPoint(new Vector3(-1.45f, 0.8f, 0f));
+        }
+
+        ReproducirSonidoProcedural(TipoSonido.AperturaPuerta);
+
+        Vector3 posInicial = playerTransform.position;
+        float duracion = 0.55f;
+        float t = 0f;
+
+        while (t < duracion)
+        {
+            t += Time.deltaTime;
+            float factor = Mathf.SmoothStep(0f, 1f, t / duracion);
+            playerTransform.position = Vector3.Lerp(posInicial, posSalida, factor);
+            yield return null;
+        }
+
+        playerTransform.position = posSalida;
+
+        CharacterController cc = playerTransform.GetComponent<CharacterController>();
+        if (cc != null) cc.enabled = true;
+
+        jugadorEscondido = false;
+        enTransicionEscondite = false;
+        MostrarMensajeFlotante("Has salido de debajo del auto.", 2.0f);
     }
 
     public void AbrirCofre()

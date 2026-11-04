@@ -631,8 +631,10 @@ public class GeneradorMenuSilentHill : EditorWindow
         txtCred.text = "<b><size=30>UNIVERSIDAD MALDITA</size></b>\n\n" +
                        "<color=#888888>Un videojuego de terror psicológico en primera persona.</color>\n\n" +
                        "<b><color=#AA2222>EQUIPO DE DESARROLLO</color></b>\n" +
-                       "Programación & Cinemática • Armando Ruano\n" +
-                       "Diseño de Escenario & Iluminación • Equipo Horror Game\n\n" +
+                       "Jose Armando Ruano Mascorro\n" +
+                       "Cecilia Aurora Robelo Hernandez\n" +
+                       "Bryan Emilio Arredondo López\n" +
+                       "GRUPO GIDS6103 — Ingeniería en Software\n\n" +
                        "<b><color=#AA2222>TECNOLOGÍA</color></b>\n" +
                        "Motor Gráfico • Unity 6\n" +
                        "Pipeline • Universal Render Pipeline (URP)\n\n" +

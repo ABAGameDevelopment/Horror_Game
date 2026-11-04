@@ -97,6 +97,7 @@ public class PlayerController : MonoBehaviour
     public void OnJump(InputValue value)
     {
         if (EnIntro) return;
+        if (CarEscapeController.Instance != null && CarEscapeController.Instance.JugadorEscondido) return;
         if (!value.isPressed) return;
 
         if (controller.isGrounded || jumpsUsed < maxJumps)
@@ -139,10 +140,20 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    public void ApagarLinterna()
+    {
+        if (luzLinterna != null && linternaEncendida)
+        {
+            linternaEncendida = false;
+            luzLinterna.enabled = false;
+        }
+    }
+
     // Movimiento del jugador.
     private void HandleMovement()
     {
         if (controller == null) return;
+        if (CarEscapeController.Instance != null && CarEscapeController.Instance.JugadorEscondido) return;
 
         if (controller.isGrounded && verticalVelocity < 0)
         {
@@ -237,10 +248,19 @@ public class PlayerController : MonoBehaviour
         {
             cameraPitch -= cameraY;
 
+            float minPitch = -maxLookAngle;
+            float maxPitch = maxLookAngle;
+
+            if (CarEscapeController.Instance != null && CarEscapeController.Instance.JugadorEscondido)
+            {
+                minPitch = -22f;
+                maxPitch = 22f;
+            }
+
             cameraPitch = Mathf.Clamp(
                 cameraPitch,
-                -maxLookAngle,
-                maxLookAngle
+                minPitch,
+                maxPitch
             );
 
             playerCamera.localRotation =

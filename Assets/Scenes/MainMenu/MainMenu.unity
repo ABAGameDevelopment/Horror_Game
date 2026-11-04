@@ -48601,7 +48601,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 10}
-  m_SizeDelta: {x: 620, y: 360}
+  m_SizeDelta: {x: 620, y: 400}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1640632741
 MonoBehaviour:
@@ -48623,7 +48623,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "<b><size=30>UNIVERSIDAD MALDITA</size></b>\n\n<color=#888888>Un videojuego de terror psicol\xF3gico en primera persona.</color>\n\n<b><color=#AA2222>EQUIPO DE DESARROLLO</color></b>\nProgramaci\xF3n & Cinem\xE1tica \u2022 Armando Ruano\nDise\xF1o de Escenario & Iluminaci\xF3n \u2022 Equipo Horror Game\n\n<b><color=#AA2222>TECNOLOG\xCDA</color></b>\nMotor Gr\xE1fico \u2022 Unity 6\nPipeline \u2022 Universal Render Pipeline (URP)\n\n<color=#555555>Octubre 2026 \u2014 Proyecto Final</color>"
+  m_text: "<b><size=30>UNIVERSIDAD MALDITA</size></b>\n\n<color=#888888>Un videojuego de terror psicol\xF3gico en primera persona.</color>\n\n<b><color=#AA2222>EQUIPO DE DESARROLLO</color></b>\nJose Armando Ruano Mascorro\nCecilia Aurora Robelo Hernandez\nBryan Emilio Arredondo L\xF3pez\nGRUPO GIDS6103 \u2014 Ingenier\xEDa en Software\n\n<b><color=#AA2222>TECNOLOG\xCDA</color></b>\nMotor Gr\xE1fico \u2022 Unity 6\nPipeline \u2022 Universal Render Pipeline (URP)\n\n<color=#555555>Octubre 2026 \u2014 Proyecto Final</color>"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 0161d805a3764c089bef00bfe00793f5, type: 2}
   m_sharedMaterial: {fileID: 2147374, guid: 0161d805a3764c089bef00bfe00793f5, type: 2}

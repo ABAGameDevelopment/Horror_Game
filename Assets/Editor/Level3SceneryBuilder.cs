@@ -1,3 +1,4 @@
+using UnityEngine.UI;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -9,7 +10,8 @@ public static class Level3SceneryBuilder
 {
     private const string ScenePath = "Assets/Scenes/Level3/Level3.unity";
     private const string SceneAltPath = "Assets/Scenes/Level3/University.unity";
-    private const string SceneryVersionName = "Escenografia_Nivel3_LaCalle_v2";
+    private const string SceneryVersionName = "Escenografia_Nivel3_LaCalle_v4";
+    private const string EnemyGlbPath = "Assets/Prefabs/Enemy/Enemy.glb";
 
     // Prefabs de Vehículos
     private const string CarRedPrefabPath = "Assets/ARCADE - FREE Racing Car/Prefabs (With Colliders)/Free Racing Car Red Variant.prefab";
@@ -60,7 +62,7 @@ public static class Level3SceneryBuilder
         if (EditorApplication.isPlayingOrWillChangePlaymode) return;
 
         var activeScene = EditorSceneManager.GetActiveScene();
-        if (activeScene.path == ScenePath || activeScene.path == SceneAltPath)
+        if (activeScene.name == "Level3" || (!string.IsNullOrEmpty(activeScene.path) && activeScene.path.Contains("Level3")))
         {
             CleanLegacyUI();
             PurgeLevel2Residues();
@@ -119,7 +121,7 @@ public static class Level3SceneryBuilder
     public static void ConstruirEscenografiaCarretera()
     {
         var activeScene = EditorSceneManager.GetActiveScene();
-        if (activeScene.path != ScenePath && activeScene.path != SceneAltPath)
+        if (activeScene.name != "Level3" && (string.IsNullOrEmpty(activeScene.path) || !activeScene.path.Contains("Level3")))
         {
             if (EditorUtility.DisplayDialog("Cambiar de escena", "¿Deseas abrir la escena del Nivel 3?", "Sí", "No"))
             {
@@ -172,6 +174,9 @@ public static class Level3SceneryBuilder
         // Zona 4: Silueta espectral del ente en la niebla (Jumpscare ambiental)
         GameObject siluetaEnte = BuildSiluetaEnte(root);
 
+        // Monstruo oficial del Nivel 1 patrullando la carretera
+        BuildMonstruoNivel1(root);
+
         // Zona 5: Parada Universitaria, teléfono y Pista 3 (Expediente clasificado)
         List<Light> farolasParada = new List<Light>();
         BuildZonaParadaYExpediente(root, farolasParada);
@@ -180,7 +185,7 @@ public static class Level3SceneryBuilder
         BuildBicicletaEscape(root);
 
         // Zona 7: Derrumbe / Puente colapsado (Bloqueo insalvable)
-        BuildBloqueoCarretera(root);
+        // BuildBloqueoCarretera eliminado a peticion del usuario (camino libre)
 
         // Configurar gestor de eventos de terror de la carretera
         CarreteraEventosTerror eventos = root.AddComponent<CarreteraEventosTerror>();
@@ -196,6 +201,19 @@ public static class Level3SceneryBuilder
 
         // Reposicionar al jugador
         UbicarJugador();
+
+        // Hornear NavMesh para que el monstruo patrulle la carretera
+        try
+        {
+            var surf = root.GetComponentInChildren<Unity.AI.Navigation.NavMeshSurface>();
+            if (surf != null) surf.BuildNavMesh();
+            UnityEditor.AI.NavMeshBuilder.BuildNavMesh();
+            Debug.Log("<color=green>[Nivel 3]</color> NavMesh horneado exitosamente sobre el asfalto.");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning("[Nivel 3] No se pudo hornear NavMesh automáticamente: " + ex.Message);
+        }
 
         EditorSceneManager.MarkSceneDirty(activeScene);
         EditorSceneManager.SaveScene(activeScene);
@@ -277,6 +295,69 @@ public static class Level3SceneryBuilder
         moon.shadows = LightShadows.Soft;
     }
 
+    private static void BuildLimitesCarretera(GameObject env, GameObject jerseyPrefab, Material matBarrera)
+    {
+        // 1. Limite Final de la Carretera (Z = 168m)
+        GameObject finCarretera = new GameObject("Zona_Limite_Fin_Carretera");
+        finCarretera.transform.SetParent(env.transform);
+        finCarretera.transform.position = new Vector3(0f, 0f, 168f);
+
+        // Fila de barreras de concreto bloqueando la vía
+        if (jerseyPrefab != null)
+        {
+            float[] barrierXs = { -6.5f, -3.25f, 0f, 3.25f, 6.5f };
+            for (int i = 0; i < barrierXs.Length; i++)
+            {
+                GameObject b = Object.Instantiate(jerseyPrefab, new Vector3(barrierXs[i], 0f, 168f), Quaternion.identity, finCarretera.transform);
+                b.name = "Barrera_FinCarretera_" + i;
+                if (matBarrera != null) b.GetComponentInChildren<Renderer>().sharedMaterial = matBarrera;
+            }
+        }
+
+        // Luces rojas y ambar de peligro intermitente / baliza en el bloqueo
+        for (int lado = -1; lado <= 1; lado += 2)
+        {
+            GameObject luzPeligro = new GameObject("Luz_Peligro_FinCarretera");
+            luzPeligro.transform.SetParent(finCarretera.transform);
+            luzPeligro.transform.position = new Vector3(lado * 4.5f, 1.2f, 168f);
+            Light lp = luzPeligro.AddComponent<Light>();
+            lp.type = LightType.Point;
+            lp.color = new Color(1f, 0.2f, 0.1f);
+            lp.range = 7f;
+            lp.intensity = 2.5f;
+            luzPeligro.AddComponent<HorrorLightFlicker>().Configure(0.2f, 3.0f, 4.0f, 0.08f);
+        }
+
+        // Pared invisible física para impedir que el jugador cruce hacia el vacío
+        GameObject colParedFin = new GameObject("Colisionador_FinCarretera");
+        colParedFin.transform.SetParent(finCarretera.transform);
+        colParedFin.transform.position = new Vector3(0f, 3f, 168.5f);
+        BoxCollider bcFin = colParedFin.AddComponent<BoxCollider>();
+        bcFin.size = new Vector3(26f, 8f, 2f);
+
+        // 2. Limite Inicial detrás del auto del jugador (Z = -24m)
+        GameObject iniCarretera = new GameObject("Zona_Limite_Inicio_Carretera");
+        iniCarretera.transform.SetParent(env.transform);
+        iniCarretera.transform.position = new Vector3(0f, 0f, -24f);
+
+        if (jerseyPrefab != null)
+        {
+            float[] barrierXs = { -6.5f, -3.25f, 0f, 3.25f, 6.5f };
+            for (int i = 0; i < barrierXs.Length; i++)
+            {
+                GameObject b = Object.Instantiate(jerseyPrefab, new Vector3(barrierXs[i], 0f, -24f), Quaternion.identity, iniCarretera.transform);
+                b.name = "Barrera_InicioCarretera_" + i;
+                if (matBarrera != null) b.GetComponentInChildren<Renderer>().sharedMaterial = matBarrera;
+            }
+        }
+
+        GameObject colParedIni = new GameObject("Colisionador_InicioCarretera");
+        colParedIni.transform.SetParent(iniCarretera.transform);
+        colParedIni.transform.position = new Vector3(0f, 3f, -24.5f);
+        BoxCollider bcIni = colParedIni.AddComponent<BoxCollider>();
+        bcIni.size = new Vector3(26f, 8f, 2f);
+    }
+
     private static void BuildCarreteraYBosque(GameObject root)
     {
         GameObject env = new GameObject("Carretera_Y_Entorno");
@@ -287,13 +368,34 @@ public static class Level3SceneryBuilder
         Material matCharco = AssetDatabase.LoadAssetAtPath<Material>(MatCharcoAguaPath);
         Material matBarrera = AssetDatabase.LoadAssetAtPath<Material>(MatBarreraConcretoPath);
 
-        // 1. Asfalto principal (14m de ancho x 170m de largo: de z = -15 a z = 155)
+        // 0. Suelo base amplio del bosque y carretera (elimina cualquier vacio o triangulo de terreno)
+        GameObject groundForest = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        groundForest.name = "Suelo_Bosque_Carretera";
+        groundForest.transform.SetParent(env.transform);
+        groundForest.transform.position = new Vector3(0f, -0.2f, 75f);
+        groundForest.transform.localScale = new Vector3(220f, 0.2f, 320f); // de X=-110 a 110, Z=-85 a 235
+        if (matAsfalto != null) groundForest.GetComponent<Renderer>().sharedMaterial = matAsfalto;
+
+        // Desactivar la malla con triangulos del terreno nativo si existe
+        Terrain terrain = Object.FindAnyObjectByType<Terrain>();
+        if (terrain != null)
+        {
+            if (matAsfalto != null) terrain.materialTemplate = matAsfalto;
+            terrain.drawHeightmap = false;
+        }
+
+        // 1. Asfalto principal (14m de ancho x 210m de largo: de z = -30 a z = 180)
         GameObject road = GameObject.CreatePrimitive(PrimitiveType.Cube);
         road.name = "Asfalto_Carretera";
         road.transform.SetParent(env.transform);
-        road.transform.position = new Vector3(0f, -0.05f, 70f);
-        road.transform.localScale = new Vector3(14f, 0.3f, 170f);
+        road.transform.position = new Vector3(0f, -0.05f, 75f);
+        road.transform.localScale = new Vector3(14f, 0.3f, 210f);
         if (matAsfalto != null) road.GetComponent<Renderer>().sharedMaterial = matAsfalto;
+        road.isStatic = true;
+        GameObjectUtility.SetStaticEditorFlags(road, StaticEditorFlags.NavigationStatic);
+        var navSurf = road.AddComponent<Unity.AI.Navigation.NavMeshSurface>();
+        navSurf.collectObjects = Unity.AI.Navigation.CollectObjects.All;
+        navSurf.useGeometry = UnityEngine.AI.NavMeshCollectGeometry.PhysicsColliders;
 
         // 2. Acotamientos laterales (tierra / grava)
         for (int lado = -1; lado <= 1; lado += 2)
@@ -301,13 +403,13 @@ public static class Level3SceneryBuilder
             GameObject shoulder = GameObject.CreatePrimitive(PrimitiveType.Cube);
             shoulder.name = (lado == -1) ? "Acotamiento_Izquierdo" : "Acotamiento_Derecho";
             shoulder.transform.SetParent(env.transform);
-            shoulder.transform.position = new Vector3(lado * 9.5f, -0.1f, 70f);
-            shoulder.transform.localScale = new Vector3(5f, 0.25f, 170f);
+            shoulder.transform.position = new Vector3(lado * 9.5f, -0.1f, 75f);
+            shoulder.transform.localScale = new Vector3(5f, 0.25f, 210f);
             if (matAsfalto != null) shoulder.GetComponent<Renderer>().sharedMaterial = matAsfalto;
         }
 
         // 3. Líneas amarillas centrales
-        for (float z = -10f; z < 150f; z += 5.5f)
+        for (float z = -25f; z < 165f; z += 5.5f)
         {
             GameObject dash = GameObject.CreatePrimitive(PrimitiveType.Cube);
             dash.name = "Linea_Amarilla_Centro";
@@ -323,15 +425,15 @@ public static class Level3SceneryBuilder
             GameObject sideLine = GameObject.CreatePrimitive(PrimitiveType.Cube);
             sideLine.name = "Linea_Blanca_Acotamiento";
             sideLine.transform.SetParent(env.transform);
-            sideLine.transform.position = new Vector3(lado * 6.5f, 0.11f, 70f);
-            sideLine.transform.localScale = new Vector3(0.18f, 0.02f, 170f);
+            sideLine.transform.position = new Vector3(lado * 6.5f, 0.11f, 75f);
+            sideLine.transform.localScale = new Vector3(0.18f, 0.02f, 210f);
         }
 
         // 5. Charcos de agua reflectantes sobre el asfalto mojado
         if (matCharco != null)
         {
-            float[] puddleZs = { -2f, 18f, 45f, 68f, 92f, 115f, 138f };
-            float[] puddleXs = { 1.2f, -2.5f, 3.1f, -1.8f, 2.4f, -3.2f, 0.5f };
+            float[] puddleZs = { -15f, -2f, 18f, 45f, 68f, 92f, 115f, 138f, 155f };
+            float[] puddleXs = { -1.5f, 1.2f, -2.5f, 3.1f, -1.8f, 2.4f, -3.2f, 0.5f, 2.0f };
             for (int i = 0; i < puddleZs.Length; i++)
             {
                 GameObject puddle = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -348,7 +450,7 @@ public static class Level3SceneryBuilder
         GameObject jerseyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(JerseyBarrierModelPath);
         if (jerseyPrefab != null)
         {
-            for (float z = -5f; z <= 145f; z += 11f)
+            for (float z = -20f; z <= 165f; z += 11f)
             {
                 GameObject bIzq = Object.Instantiate(jerseyPrefab, new Vector3(-7.4f, 0f, z), Quaternion.Euler(0f, 90f, 0f), env.transform);
                 bIzq.name = "Barrera_Jersey_Izq";
@@ -362,7 +464,7 @@ public static class Level3SceneryBuilder
 
         // 7. Farolas de luz de sodio con parpadeo misterioso
         GameObject streetLightPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(StreetLightPackPath + "Street_Light_A_01.prefab");
-        for (float z = 8f; z <= 135f; z += 28f)
+        for (float z = -10f; z <= 155f; z += 28f)
         {
             float side = ((int)(z / 28f) % 2 == 0) ? 7.6f : -7.6f;
             float rotY = (side > 0) ? -90f : 90f;
@@ -392,7 +494,7 @@ public static class Level3SceneryBuilder
             GameObject forest = new GameObject("Bosque_Carretera");
             forest.transform.SetParent(env.transform);
 
-            for (float z = -15f; z <= 160f; z += 5f)
+            for (float z = -30f; z <= 180f; z += 5f)
             {
                 for (int capa = 1; capa <= 4; capa++)
                 {
@@ -410,6 +512,9 @@ public static class Level3SceneryBuilder
                 }
             }
         }
+
+        // 9. Limites físicos y visuales en los extremos de la carretera
+        BuildLimitesCarretera(env, jerseyPrefab, matBarrera);
     }
 
     private static GameObject BuildAutoAveriado(GameObject root)
@@ -578,7 +683,7 @@ public static class Level3SceneryBuilder
         GameObject carBluePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(CarBluePrefabPath);
         if (carBluePrefab != null)
         {
-            GameObject crashCar = Object.Instantiate(carBluePrefab, new Vector3(4.8f, 0.4f, 75f), Quaternion.Euler(15f, -40f, -12f), z2.transform);
+            GameObject crashCar = Object.Instantiate(carBluePrefab, new Vector3(6.5f, 0.4f, 75f), Quaternion.Euler(15f, -40f, -12f), z2.transform);
             crashCar.name = "Furgoneta_Suministros_Chocada";
 
             // Faro parpadeante roto
@@ -597,15 +702,15 @@ public static class Level3SceneryBuilder
         GameObject cratePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(WoodCrateModelPath);
         if (cratePrefab != null)
         {
-            Object.Instantiate(cratePrefab, new Vector3(2.8f, 0f, 73f), Quaternion.Euler(0f, 22f, 0f), z2.transform);
-            Object.Instantiate(cratePrefab, new Vector3(3.2f, 0.4f, 73.2f), Quaternion.Euler(0f, -15f, 0f), z2.transform);
+            Object.Instantiate(cratePrefab, new Vector3(6.8f, 0f, 73f), Quaternion.Euler(0f, 22f, 0f), z2.transform);
+            Object.Instantiate(cratePrefab, new Vector3(7.2f, 0.4f, 73.2f), Quaternion.Euler(0f, -15f, 0f), z2.transform);
             Object.Instantiate(cratePrefab, new Vector3(6.2f, 0f, 77f), Quaternion.Euler(20f, 45f, 0f), z2.transform);
         }
 
         GameObject drumPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(OilDrumModelPath);
         if (drumPrefab != null)
         {
-            Object.Instantiate(drumPrefab, new Vector3(1.8f, 0.35f, 76f), Quaternion.Euler(0f, 0f, 90f), z2.transform);
+            Object.Instantiate(drumPrefab, new Vector3(6.2f, 0.35f, 76f), Quaternion.Euler(0f, 0f, 90f), z2.transform);
             Object.Instantiate(drumPrefab, new Vector3(6.5f, 0f, 74f), Quaternion.identity, z2.transform);
         }
 
@@ -619,7 +724,7 @@ public static class Level3SceneryBuilder
         Sprite spNota2 = AssetDatabase.LoadAssetAtPath<Sprite>(Nota2Path);
         GameObject pista2 = new GameObject("Pista_2_ReporteIncidente");
         pista2.transform.SetParent(z2.transform);
-        pista2.transform.position = new Vector3(3.1f, 0.85f, 73.2f);
+        pista2.transform.position = new Vector3(6.8f, 0.85f, 73.2f);
 
         GameObject docMesh = GameObject.CreatePrimitive(PrimitiveType.Quad);
         docMesh.name = "Malla_Reporte";
@@ -680,11 +785,288 @@ public static class Level3SceneryBuilder
         return silueta;
     }
 
+    private static GameObject BuildMonstruoNivel1(GameObject root)
+    {
+        // 1. GameObject Enemy idéntico al Nivel 1 (de pie, vertical, escala 1.5)
+        GameObject contenedorMonstruo = new GameObject("Enemy");
+        contenedorMonstruo.transform.SetParent(root.transform);
+        contenedorMonstruo.transform.position = new Vector3(-4.5f, 1.5f, 52f);
+        contenedorMonstruo.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+        contenedorMonstruo.transform.localScale = Vector3.one * 1.5f;
+
+        // Asignación directa de MeshFilter y MeshRenderer (como en Nivel 1, de pie sin la rotación del GLB)
+        MeshFilter mf = contenedorMonstruo.AddComponent<MeshFilter>();
+        MeshRenderer mr = contenedorMonstruo.AddComponent<MeshRenderer>();
+        Object[] allAssets = AssetDatabase.LoadAllAssetsAtPath(EnemyGlbPath);
+        foreach (var a in allAssets)
+        {
+            if (a is Mesh m && mf.sharedMesh == null) mf.sharedMesh = m;
+            if (a is Material mat && mr.sharedMaterial == null) mr.sharedMaterial = mat;
+        }
+
+        // 2. Colisionador físico
+        CapsuleCollider col = contenedorMonstruo.AddComponent<CapsuleCollider>();
+        col.center = new Vector3(0f, 0f, 0f);
+        col.radius = 0.35f;
+        col.height = 1.99f;
+
+        // 3. NavMeshAgent idéntico a Nivel 1
+        UnityEngine.AI.NavMeshAgent agent = contenedorMonstruo.AddComponent<UnityEngine.AI.NavMeshAgent>();
+        agent.radius = 0.35f;
+        agent.height = 1.9923558f;
+        agent.baseOffset = 0.9961779f;
+        agent.speed = 1.8f;
+        agent.acceleration = 8f;
+        agent.angularSpeed = 360f;
+        agent.stoppingDistance = 1.2f;
+
+        // 4. Punto de visión para raycast a la misma altura de Nivel 1
+        GameObject pvGo = new GameObject("PuntoVision");
+        pvGo.transform.SetParent(contenedorMonstruo.transform);
+        pvGo.transform.localPosition = new Vector3(0f, 0.81f, 0f);
+
+        // 5. Audio 3D en el monstruo
+        AudioSource audioMonstruo = contenedorMonstruo.AddComponent<AudioSource>();
+        audioMonstruo.spatialBlend = 1.0f; // 3D
+        audioMonstruo.minDistance = 2f;
+        audioMonstruo.maxDistance = 25f;
+        audioMonstruo.loop = true;
+        audioMonstruo.volume = 0.55f;
+        audioMonstruo.rolloffMode = AudioRolloffMode.Logarithmic;
+
+        AudioClip clipMujer = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/MujerLlorando.mp3");
+        if (clipMujer != null)
+        {
+            audioMonstruo.clip = clipMujer;
+            audioMonstruo.Play();
+        }
+
+        // 6. Puntos de Patrullaje distribuidos por la carretera
+        GameObject grupoPuntos = new GameObject("Puntos_Patrullaje_Monstruo");
+        grupoPuntos.transform.SetParent(root.transform);
+
+        Vector3[] posicionesPatrulla = new Vector3[]
+        {
+            new Vector3(-3.5f, 1.5f, 18f),  // Cerca del auto averiado y el hito
+            new Vector3(4.0f,  1.5f, 42f),  // Curva abierta
+            new Vector3(-4.5f, 1.5f, 68f),  // Choque de camion / auto azul
+            new Vector3(3.0f,  1.5f, 92f),  // Tramo oscuro entre coniferas
+            new Vector3(-3.0f, 1.5f, 118f), // Frente a la caseta con el expediente
+            new Vector3(1.5f,  1.5f, 138f)  // Cerca del derrumbe y la bicicleta
+        };
+
+        Transform[] transformsPuntos = new Transform[posicionesPatrulla.Length];
+        for (int i = 0; i < posicionesPatrulla.Length; i++)
+        {
+            GameObject pObj = new GameObject($"PuntoPatrulla_{i + 1}");
+            pObj.transform.SetParent(grupoPuntos.transform);
+            pObj.transform.position = posicionesPatrulla[i];
+            transformsPuntos[i] = pObj.transform;
+        }
+
+        // 7. Sistema de MuerteJugador (screamer jumpscare y pantalla de derrota)
+        MuerteJugador muerte = BuildMuerteJugador(root, contenedorMonstruo.transform, audioMonstruo);
+
+        // 8. Componente MonstruoIA original de Nivel 1
+        MonstruoIA ia = contenedorMonstruo.AddComponent<MonstruoIA>();
+        ConfigurarMonstruoIA(ia, agent, pvGo.transform, transformsPuntos, muerte);
+
+        Debug.Log("<color=green>[Nivel 3]</color> Monstruo original del Nivel 1 de pie y con screamer añadido con éxito.");
+        return contenedorMonstruo;
+    }
+
+    private static MuerteJugador BuildMuerteJugador(GameObject root, Transform monstruo, AudioSource audioMonstruo)
+    {
+        GameObject canvasGo = new GameObject("Canvas_MuerteJugador");
+        canvasGo.transform.SetParent(root.transform);
+        Canvas canvas = canvasGo.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 99;
+        UnityEngine.UI.CanvasScaler scaler = canvasGo.AddComponent<UnityEngine.UI.CanvasScaler>();
+        scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        canvasGo.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+
+        // 1. Panel Oscuro para fade out
+        GameObject poGo = new GameObject("PanelOscuro");
+        poGo.transform.SetParent(canvasGo.transform, false);
+        UnityEngine.UI.Image imgOscuro = poGo.AddComponent<UnityEngine.UI.Image>();
+        imgOscuro.color = new Color(0f, 0f, 0f, 0f);
+        imgOscuro.raycastTarget = false;
+        RectTransform rtOscuro = poGo.GetComponent<RectTransform>();
+        rtOscuro.anchorMin = Vector2.zero;
+        rtOscuro.anchorMax = Vector2.one;
+        rtOscuro.offsetMin = Vector2.zero;
+        rtOscuro.offsetMax = Vector2.zero;
+
+        // 2. Panel Muerte (Ventana de derrota con botones)
+        GameObject pmGo = new GameObject("PanelMuerte");
+        pmGo.transform.SetParent(canvasGo.transform, false);
+        UnityEngine.UI.Image imgMuerte = pmGo.AddComponent<UnityEngine.UI.Image>();
+        imgMuerte.color = new Color(0.02f, 0.02f, 0.02f, 0.95f);
+        RectTransform rtMuerte = pmGo.GetComponent<RectTransform>();
+        rtMuerte.anchorMin = Vector2.zero;
+        rtMuerte.anchorMax = Vector2.one;
+        rtMuerte.offsetMin = Vector2.zero;
+        rtMuerte.offsetMax = Vector2.zero;
+
+        // Texto "HAS CAÍDO EN LA OSCURIDAD"
+        GameObject txtGo = new GameObject("TextoMuerte");
+        txtGo.transform.SetParent(pmGo.transform, false);
+        var txt = txtGo.AddComponent<TMPro.TextMeshProUGUI>();
+        txt.font = RuntimeUI.FuenteTitulo;
+        txt.text = "HAS CAÍDO EN LA OSCURIDAD";
+        txt.fontSize = 58f;
+        txt.alignment = TMPro.TextAlignmentOptions.Center;
+        txt.color = new Color(0.85f, 0.15f, 0.15f, 1f);
+        RectTransform rtTxt = txtGo.GetComponent<RectTransform>();
+        rtTxt.anchorMin = new Vector2(0.5f, 0.65f);
+        rtTxt.anchorMax = new Vector2(0.5f, 0.65f);
+        rtTxt.sizeDelta = new Vector2(900f, 100f);
+
+        // Botón Reintentar
+        GameObject btnReintentar = new GameObject("BtnReintentar");
+        btnReintentar.transform.SetParent(pmGo.transform, false);
+        UnityEngine.UI.Image imgBtnR = btnReintentar.AddComponent<UnityEngine.UI.Image>();
+        imgBtnR.color = new Color(0.18f, 0.18f, 0.18f, 1f);
+        UnityEngine.UI.Button bR = btnReintentar.AddComponent<UnityEngine.UI.Button>();
+        RectTransform rtBtnR = btnReintentar.GetComponent<RectTransform>();
+        rtBtnR.anchorMin = new Vector2(0.5f, 0.45f);
+        rtBtnR.anchorMax = new Vector2(0.5f, 0.45f);
+        rtBtnR.sizeDelta = new Vector2(300f, 60f);
+
+        GameObject txtBtnR = new GameObject("Texto");
+        txtBtnR.transform.SetParent(btnReintentar.transform, false);
+        var tR = txtBtnR.AddComponent<TMPro.TextMeshProUGUI>();
+        tR.font = RuntimeUI.FuenteTexto;
+        tR.text = "REINTENTAR";
+        tR.fontSize = 28f;
+        tR.alignment = TMPro.TextAlignmentOptions.Center;
+        tR.color = Color.white;
+        RectTransform rtTR = txtBtnR.GetComponent<RectTransform>();
+        rtTR.anchorMin = Vector2.zero;
+        rtTR.anchorMax = Vector2.one;
+        rtTR.offsetMin = Vector2.zero;
+        rtTR.offsetMax = Vector2.zero;
+
+        // Botón Menú Principal
+        GameObject btnMenu = new GameObject("BtnMenu");
+        btnMenu.transform.SetParent(pmGo.transform, false);
+        UnityEngine.UI.Image imgBtnM = btnMenu.AddComponent<UnityEngine.UI.Image>();
+        imgBtnM.color = new Color(0.18f, 0.18f, 0.18f, 1f);
+        UnityEngine.UI.Button bM = btnMenu.AddComponent<UnityEngine.UI.Button>();
+        RectTransform rtBtnM = btnMenu.GetComponent<RectTransform>();
+        rtBtnM.anchorMin = new Vector2(0.5f, 0.33f);
+        rtBtnM.anchorMax = new Vector2(0.5f, 0.33f);
+        rtBtnM.sizeDelta = new Vector2(300f, 60f);
+
+        GameObject txtBtnM = new GameObject("Texto");
+        txtBtnM.transform.SetParent(btnMenu.transform, false);
+        var tM = txtBtnM.AddComponent<TMPro.TextMeshProUGUI>();
+        tM.font = RuntimeUI.FuenteTexto;
+        tM.text = "MENÚ PRINCIPAL";
+        tM.fontSize = 28f;
+        tM.alignment = TMPro.TextAlignmentOptions.Center;
+        tM.color = Color.white;
+        RectTransform rtTM = txtBtnM.GetComponent<RectTransform>();
+        rtTM.anchorMin = Vector2.zero;
+        rtTM.anchorMax = Vector2.one;
+        rtTM.offsetMin = Vector2.zero;
+        rtTM.offsetMax = Vector2.zero;
+
+        pmGo.SetActive(false);
+
+        // Componente MuerteJugador
+        GameObject goControl = new GameObject("ControlMuerte");
+        goControl.transform.SetParent(canvasGo.transform, false);
+        MuerteJugador mj = goControl.AddComponent<MuerteJugador>();
+
+        GameObject player = GameObject.FindWithTag("Player");
+        if (player == null)
+        {
+            PlayerController pc = Object.FindAnyObjectByType<PlayerController>();
+            if (pc != null) player = pc.gameObject;
+        }
+
+        Transform camTransform = Camera.main != null ? Camera.main.transform : (player != null ? player.transform.Find("Camera") : null);
+        AudioClip clipScreamer = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/Screamer.mp3");
+
+        var so = new SerializedObject(mj);
+        if (player != null)
+        {
+            so.FindProperty("playerController").objectReferenceValue = player.GetComponent<PlayerController>();
+            so.FindProperty("playerInput").objectReferenceValue = player.GetComponent<UnityEngine.InputSystem.PlayerInput>();
+            so.FindProperty("characterController").objectReferenceValue = player.GetComponent<CharacterController>();
+        }
+        if (camTransform != null)
+        {
+            so.FindProperty("camaraJugador").objectReferenceValue = camTransform;
+        }
+        AudioSource directScreamer = (camTransform != null ? camTransform.gameObject : goControl).AddComponent<AudioSource>();
+        directScreamer.spatialBlend = 0f;
+        directScreamer.volume = 1f;
+        directScreamer.playOnAwake = false;
+        so.FindProperty("audioScreamer").objectReferenceValue = directScreamer;
+        so.FindProperty("sonidoScreamer").objectReferenceValue = clipScreamer;
+        so.FindProperty("duracionScreamer").floatValue = 2.5f;
+        so.FindProperty("posicionScreamer").vector3Value = new Vector3(0f, -1.1f, 0.95f);
+        so.FindProperty("distanciaAtaque").floatValue = 0.35f;
+        so.FindProperty("velocidadAtaque").floatValue = 8f;
+        so.FindProperty("panelOscuro").objectReferenceValue = imgOscuro;
+        so.FindProperty("panelMuerte").objectReferenceValue = pmGo;
+        so.FindProperty("duracionDesvanecimiento").floatValue = 1.5f;
+        so.FindProperty("escenaReintentar").stringValue = "Level3";
+        so.FindProperty("escenaMenuPrincipal").stringValue = "MainMenu";
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        UnityEditor.Events.UnityEventTools.AddPersistentListener(bR.onClick, mj.Reintentar);
+        UnityEditor.Events.UnityEventTools.AddPersistentListener(bM.onClick, mj.IrAlMenuPrincipal);
+
+        return mj;
+    }
+
+    private static void ConfigurarMonstruoIA(MonstruoIA ia, UnityEngine.AI.NavMeshAgent agent, Transform puntoVision, Transform[] waypoints, MuerteJugador muerte)
+    {
+        var so = new SerializedObject(ia);
+        so.FindProperty("agente").objectReferenceValue = agent;
+        so.FindProperty("puntoVision").objectReferenceValue = puntoVision;
+        so.FindProperty("velocidadPatrulla").floatValue = 1.5f;
+        so.FindProperty("velocidadPersecucion").floatValue = 3.5f;
+        so.FindProperty("distanciaVision").floatValue = 11.5f;
+        so.FindProperty("anguloVision").floatValue = 100f;
+        so.FindProperty("distanciaPerdida").floatValue = 20f;
+        so.FindProperty("tiempoBusqueda").floatValue = 4.5f;
+        so.FindProperty("distanciaCaptura").floatValue = 1.5f;
+
+        SerializedProperty propPuntos = so.FindProperty("puntosPatrullaje");
+        propPuntos.arraySize = waypoints.Length;
+        for (int i = 0; i < waypoints.Length; i++)
+        {
+            propPuntos.GetArrayElementAtIndex(i).objectReferenceValue = waypoints[i];
+        }
+
+        GameObject player = GameObject.FindWithTag("Player");
+        if (player != null)
+        {
+            so.FindProperty("jugador").objectReferenceValue = player.transform;
+        }
+
+        if (muerte != null)
+        {
+            so.FindProperty("muerteJugador").objectReferenceValue = muerte;
+        }
+
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
     private static void BuildZonaParadaYExpediente(GameObject root, List<Light> farolasParada)
     {
         GameObject z4 = new GameObject("Zona_4_ParadaUniversitaria_Y_Expediente");
         z4.transform.SetParent(root.transform);
         z4.transform.position = new Vector3(0f, 0f, 122f);
+
+        Material matBarrilRojo = AssetDatabase.LoadAssetAtPath<Material>(MatBarrilRojoPath);
+        Material matCajaMadera = AssetDatabase.LoadAssetAtPath<Material>(MatCajaMaderaPath);
 
         // 1. Marquesina metálica de autobús
         GameObject canopyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ParkingCanopyModelPath);
@@ -702,40 +1084,76 @@ public static class Level3SceneryBuilder
             booth.name = "Caseta_Telefonica";
         }
 
-        // 3. Mesa / Banco dentro de la parada
+        // 3. Mesa / Banco dentro de la parada (posicionado correctamente bajo la marquesina en Z=122)
         GameObject bench = GameObject.CreatePrimitive(PrimitiveType.Cube);
         bench.name = "Banco_Espera";
         bench.transform.SetParent(z4.transform);
-        bench.transform.localPosition = new Vector3(6.2f, 0.45f, 122f);
+        bench.transform.position = new Vector3(6.2f, 0.45f, 122f);
         bench.transform.localScale = new Vector3(1.2f, 0.45f, 2.5f);
+        if (matCajaMadera != null) bench.GetComponent<Renderer>().sharedMaterial = matCajaMadera;
 
-        // Farola sobre la caseta
+        // 4. Farola potente sobre la caseta iluminando toda la parada y la carretera
         GameObject lampGo = new GameObject("Luz_Parada_Autobus");
         lampGo.transform.SetParent(z4.transform);
-        lampGo.transform.position = new Vector3(6.2f, 3.2f, 122f);
+        lampGo.transform.position = new Vector3(6.2f, 3.5f, 122f);
         Light lampLight = lampGo.AddComponent<Light>();
         lampLight.type = LightType.Point;
-        lampLight.color = new Color(1f, 0.88f, 0.65f);
-        lampLight.intensity = 2.2f;
-        lampLight.range = 10f;
-        lampGo.AddComponent<HorrorLightFlicker>().Configure(0.2f, 2.4f, 6.5f, 0.05f);
+        lampLight.color = new Color(1f, 0.92f, 0.72f);
+        lampLight.intensity = 3.2f;
+        lampLight.range = 18f;
+        lampGo.AddComponent<HorrorLightFlicker>().Configure(0.2f, 3.4f, 7.5f, 0.05f);
         farolasParada.Add(lampLight);
 
-        // PISTA 3: EL EXPEDIENTE CLASIFICADO (La revelación definitiva)
+        // 5. Señal vial de parada de autobús al borde del asfalto
+        GameObject busPole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        busPole.name = "Poste_Senal_Parada";
+        busPole.transform.SetParent(z4.transform);
+        busPole.transform.position = new Vector3(5.2f, 1.3f, 119.5f);
+        busPole.transform.localScale = new Vector3(0.08f, 1.3f, 0.08f);
+
+        GameObject signPlate = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        signPlate.name = "Placa_Parada_Autobus";
+        signPlate.transform.SetParent(z4.transform);
+        signPlate.transform.position = new Vector3(5.2f, 2.3f, 119.5f);
+        signPlate.transform.localScale = new Vector3(0.1f, 0.7f, 0.9f);
+        if (matBarrilRojo != null) signPlate.GetComponent<Renderer>().sharedMaterial = matBarrilRojo;
+
+        // PISTA 3: EL EXPEDIENTE CLASIFICADO (Carpeta roja con papeles y luz dorada)
         Sprite spNota3 = AssetDatabase.LoadAssetAtPath<Sprite>(Nota3Path);
         GameObject expObj = new GameObject("Pista_3_ExpedienteClasificado");
         expObj.transform.SetParent(z4.transform);
-        expObj.transform.position = new Vector3(6.2f, 0.8f, 122f);
+        expObj.transform.position = new Vector3(6.2f, 0.72f, 122f);
 
+        // Carpeta roja
         GameObject folder = GameObject.CreatePrimitive(PrimitiveType.Cube);
         folder.name = "Carpeta_Expediente_Rojo";
         folder.transform.SetParent(expObj.transform);
         folder.transform.localPosition = Vector3.zero;
-        folder.transform.localScale = new Vector3(0.55f, 0.08f, 0.42f);
+        folder.transform.localScale = new Vector3(0.55f, 0.06f, 0.42f);
+        folder.transform.localRotation = Quaternion.Euler(0f, 20f, 0f);
+        if (matBarrilRojo != null) folder.GetComponent<Renderer>().sharedMaterial = matBarrilRojo;
+
+        // Hojas de expediente asomando
+        GameObject paper = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        paper.name = "Hojas_Expediente";
+        paper.transform.SetParent(expObj.transform);
+        paper.transform.localPosition = new Vector3(0.02f, 0.04f, 0.02f);
+        paper.transform.localScale = new Vector3(0.48f, 0.02f, 0.38f);
+        paper.transform.localRotation = Quaternion.Euler(0f, 24f, 0f);
+
+        // Baliza de luz dorada brillante sobre el expediente (muy visible desde la carretera)
+        GameObject halo = new GameObject("Luz_Beacon_Pista3");
+        halo.transform.SetParent(expObj.transform);
+        halo.transform.localPosition = new Vector3(0f, 0.35f, 0f);
+        Light lHalo = halo.AddComponent<Light>();
+        lHalo.type = LightType.Point;
+        lHalo.color = new Color(1f, 0.82f, 0.25f);
+        lHalo.range = 6f;
+        lHalo.intensity = 3.5f;
 
         BoxCollider expCol = expObj.AddComponent<BoxCollider>();
         expCol.isTrigger = true;
-        expCol.size = new Vector3(3f, 2.5f, 3f);
+        expCol.size = new Vector3(3.5f, 2.5f, 3.5f);
 
         PistaInteractuableLevel3 pExpComp = expObj.AddComponent<PistaInteractuableLevel3>();
         ConfigurarPista(
@@ -751,7 +1169,7 @@ public static class Level3SceneryBuilder
     {
         GameObject biciZone = new GameObject("Zona_5_Bicicleta_Regreso");
         biciZone.transform.SetParent(root.transform);
-        biciZone.transform.position = new Vector3(4.8f, 0f, 128f);
+        biciZone.transform.position = new Vector3(5.2f, 0f, 127f);
 
         // Bicicleta apoyada en la barrera Jersey
         GameObject biciObj = new GameObject("Bicicleta_Regreso_Universidad");
@@ -805,10 +1223,20 @@ public static class Level3SceneryBuilder
         Light farolLight = farolGo.AddComponent<Light>();
         farolLight.type = LightType.Spot;
         farolLight.color = new Color(0.95f, 0.98f, 1f);
-        farolLight.intensity = 2.6f;
-        farolLight.range = 28f;
-        farolLight.spotAngle = 50f;
+        farolLight.intensity = 3.5f;
+        farolLight.range = 35f;
+        farolLight.spotAngle = 55f;
         farolGo.transform.localRotation = Quaternion.Euler(6f, 0f, 0f);
+
+        // Luz de baliza cian sobre la bicicleta (indicador visual de escape)
+        GameObject beaconBici = new GameObject("Luz_Beacon_Bicicleta");
+        beaconBici.transform.SetParent(biciObj.transform);
+        beaconBici.transform.localPosition = new Vector3(0f, 1.2f, 0f);
+        Light lBici = beaconBici.AddComponent<Light>();
+        lBici.type = LightType.Point;
+        lBici.color = new Color(0.3f, 0.85f, 1f);
+        lBici.range = 6.5f;
+        lBici.intensity = 2.5f;
 
         // Eliminar colliders de partes
         Collider[] childCols = biciObj.GetComponentsInChildren<Collider>();
@@ -872,9 +1300,33 @@ public static class Level3SceneryBuilder
 
         if (player != null)
         {
-            player.transform.position = new Vector3(1.1f, 0.4f, -1.5f);
+            player.tag = "Player";
+
+            CharacterController cc = player.GetComponent<CharacterController>();
+            if (cc != null) cc.enabled = false;
+
+            PlayerController pc = player.GetComponent<PlayerController>();
+            if (pc != null) pc.enabled = true;
+
+            // Posicion con altura suficiente (Y = 1.25f) para que el CharacterController (altura 2m, centro 0m)
+            // quede reposando sobre el asfalto (Y = 0.10f) sin quedar atascado dentro del colisionador.
+            player.transform.position = new Vector3(1.1f, 1.25f, -1.5f);
             player.transform.rotation = Quaternion.Euler(0f, 8f, 0f);
-            Debug.Log("[Nivel 3] Jugador posicionado a un costado del auto averiado mirando hacia la carretera.");
+
+            if (cc != null) cc.enabled = true;
+
+            // Desactivar y destruir IntroNivel residual de Nivel 1 en Nivel 3 para garantizar control inmediato
+            IntroNivel intro = player.GetComponentInChildren<IntroNivel>(true);
+            if (intro != null)
+            {
+                intro.enabled = false;
+                if (intro.gameObject != player)
+                    Undo.DestroyObjectImmediate(intro.gameObject);
+                else
+                    Undo.DestroyObjectImmediate(intro);
+            }
+
+            Debug.Log("<color=green>[Nivel 3]</color> Jugador posicionado y desbloqueado correctamente a un costado del auto averiado.");
         }
     }
 

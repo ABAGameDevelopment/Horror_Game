@@ -76,6 +76,12 @@ public class CarEscapeController : MonoBehaviour
         Instance = this;
     }
 
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
+    }
+
     public void ConfigurarAudios(AudioClip abrirCofre, AudioClip cerrarCofre, AudioClip abrirPuerta, AudioClip cerrarPuerta, AudioClip arranqueMotor)
     {
         sfxAbrirCofre = abrirCofre;

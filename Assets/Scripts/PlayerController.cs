@@ -27,10 +27,20 @@ public class PlayerController : MonoBehaviour
 
     public event Action LinternaEncendidaPorPrimeraVez;
 
-    private bool EnIntro =>
-        introNivel != null &&
-        introNivel.isActiveAndEnabled &&
-        !introNivel.IntroduccionTerminada;
+    private bool EnIntro
+    {
+        get
+        {
+            // La cinematica de IntroNivel solo pertenece al Nivel 1 (Universidad)
+            string escena = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+            if (escena != "University" && escena != "Level1")
+                return false;
+
+            return introNivel != null &&
+                   introNivel.isActiveAndEnabled &&
+                   !introNivel.IntroduccionTerminada;
+        }
+    }
 
     private bool yaSeNotificoLinternaEncendida;
 
@@ -60,7 +70,7 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
-        if (EnIntro)
+        if (EnIntro || (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota))
         {
             moveInput = Vector2.zero;
             lookInput = Vector2.zero;
@@ -76,7 +86,7 @@ public class PlayerController : MonoBehaviour
     // Movimiento
     public void OnMove(InputValue value)
     {
-        if (EnIntro)
+        if (EnIntro || (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota))
         {
             moveInput = Vector2.zero;
             return;
@@ -88,7 +98,7 @@ public class PlayerController : MonoBehaviour
     // Cámara
     public void OnLook(InputValue value)
     {
-        if (EnIntro)
+        if (EnIntro || (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota))
         {
             lookInput = Vector2.zero;
             return;
@@ -100,7 +110,7 @@ public class PlayerController : MonoBehaviour
     // Salto
     public void OnJump(InputValue value)
     {
-        if (EnIntro) return;
+        if (EnIntro || (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota)) return;
         if (CarEscapeController.Instance != null && CarEscapeController.Instance.JugadorEscondido) return;
         if (!value.isPressed) return;
 
@@ -114,7 +124,7 @@ public class PlayerController : MonoBehaviour
     // Acción de linterna: F o botón del control Xbox.
     public void OnLight(InputValue value)
     {
-        if (EnIntro) return;
+        if (EnIntro || (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota)) return;
         if (!value.isPressed) return;
 
         ToggleLinterna();
@@ -159,7 +169,11 @@ public class PlayerController : MonoBehaviour
     // Movimiento del jugador.
     private void HandleMovement()
     {
-        if (controller == null) return;
+        if (controller == null)
+        {
+            controller = GetComponent<CharacterController>();
+            if (controller == null) return;
+        }
         if (CarEscapeController.Instance != null && CarEscapeController.Instance.JugadorEscondido) return;
 
         if (controller.isGrounded && verticalVelocity < 0)

@@ -23,6 +23,8 @@ public class MonstruoIA : MonoBehaviour
     [SerializeField] private float velocidadPersecucion = 4.5f;
 
     [Header("Deteccion")]
+    [SerializeField] private AudioSource audioEnemy;
+    [SerializeField] private AudioClip walkEnemy;
     [SerializeField] private float distanciaVision = 9f;
     [SerializeField, Range(0f, 180f)]
     private float anguloVision = 100f;
@@ -30,6 +32,7 @@ public class MonstruoIA : MonoBehaviour
     [SerializeField] private LayerMask obstaculos;
 
     [Header("Persecucion")]
+    [SerializeField] private AudioClip runEnemy;
     [SerializeField] private float distanciaPerdida = 18f;
     [SerializeField] private float tiempoBusqueda = 5f;
 
@@ -86,6 +89,8 @@ public class MonstruoIA : MonoBehaviour
             case Estado.Capturando:
                 break;
         }
+
+        ActualizarAudioMovimiento();
     }
 
     private void Merodear()
@@ -317,6 +322,9 @@ public class MonstruoIA : MonoBehaviour
         capturado = true;
         estadoActual = Estado.Capturando;
 
+        if (audioEnemy != null)
+            audioEnemy.Stop();
+
         agente.isStopped = true;
         agente.ResetPath();
         agente.enabled = false;
@@ -342,5 +350,51 @@ public class MonstruoIA : MonoBehaviour
 
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, distanciaCaptura);
+    }
+
+    private void ActualizarAudioMovimiento()
+    {
+        if (audioEnemy == null)
+            return;
+
+        // Si el monstruo está detenido, no reproducir pasos.
+        if (capturado ||
+            agente == null ||
+            !agente.enabled ||
+            !agente.isOnNavMesh ||
+            agente.isStopped ||
+            agente.velocity.sqrMagnitude < 0.04f)
+        {
+            if (audioEnemy.isPlaying)
+                audioEnemy.Stop();
+
+            return;
+        }
+
+        // Seleccionar el sonido dependiendo del estado.
+        AudioClip sonidoDeseado =
+            estadoActual == Estado.Persiguiendo
+            ? runEnemy
+            : walkEnemy;
+
+        if (sonidoDeseado == null)
+        {
+            audioEnemy.Stop();
+            return;
+        }
+
+        // Cambiar el sonido solamente cuando sea necesario.
+        if (audioEnemy.clip != sonidoDeseado)
+        {
+            audioEnemy.Stop();
+
+            audioEnemy.clip = sonidoDeseado;
+            audioEnemy.loop = true;
+            audioEnemy.Play();
+        }
+        else if (!audioEnemy.isPlaying)
+        {
+            audioEnemy.Play();
+        }
     }
 }

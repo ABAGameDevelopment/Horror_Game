@@ -11,6 +11,11 @@ public class InteraccionJugador : MonoBehaviour
     [SerializeField] private TMP_Text textoInteraccion;
     [SerializeField] private NotasUI notasUI;
 
+    [Header("Sonidos")]
+    [SerializeField] private AudioSource audioSource;
+    [SerializeField] private AudioClip sonidoLlave;
+    [SerializeField] private AudioClip sonidoNota;
+
     private PuertaInteractuable puertaCercana;
     private PuertaConLlave puertaBloqueadaCercana;
     private LlaveInteractuable llaveCercana;
@@ -37,9 +42,6 @@ public class InteraccionJugador : MonoBehaviour
         if (!value.isPressed)
             return;
 
-
-
-        // CERRAR NOTA
         if (notasUI != null && notasUI.MostrandoNota)
         {
 
@@ -47,14 +49,13 @@ public class InteraccionJugador : MonoBehaviour
             return;
         }
 
-        // RECOGER LLAVE
         if (llaveCercana != null)
         {
             llaveCercana.Recoger(this);
+
             return;
         }
 
-        // LEER NOTA
         if (notaCercana != null)
         {
             notaCercana.Interactuar();
@@ -64,17 +65,18 @@ public class InteraccionJugador : MonoBehaviour
             if (textoInteraccion != null)
                 textoInteraccion.gameObject.SetActive(false);
 
+            if (audioSource != null && sonidoNota != null)
+                audioSource.PlayOneShot(sonidoNota);
+
             return;
         }
 
-        // ABRIR PUERTA CON LLAVE
         if (puertaBloqueadaCercana != null)
         {
             puertaBloqueadaCercana.Interactuar(this);
             return;
         }
 
-        // ABRIR PUERTA NORMAL
         if (puertaCercana != null)
             puertaCercana.Interactuar();
     }
@@ -91,6 +93,9 @@ public class InteraccionJugador : MonoBehaviour
             tieneLlaveSalida = true;
             Debug.Log("El jugador tiene la llave de salida.");
         }
+
+        if (audioSource != null && sonidoLlave != null)
+            audioSource.PlayOneShot(sonidoLlave);
     }
 
     public bool TieneLlaveDe(LlaveInteractuable.TipoLlave tipo)
@@ -195,12 +200,14 @@ public class InteraccionJugador : MonoBehaviour
         if (textoInteraccion == null)
             return;
 
-        bool esXbox = playerInput != null &&
-            !string.IsNullOrEmpty(playerInput.currentControlScheme) &&
-            (playerInput.currentControlScheme.ToLower().Contains("gamepad") ||
-             playerInput.currentControlScheme.ToLower().Contains("xbox"));
+        // Elegir el texto segun el control utilizado.
+        bool usaGamepad =
+            Gamepad.current != null &&
+            (Keyboard.current == null ||
+             Gamepad.current.lastUpdateTime >
+             Keyboard.current.lastUpdateTime);
 
-        string boton = esXbox ? "X" : "E";
+        string boton = usaGamepad ? "X" : "E";
 
         string mensaje = accion == "abrir"
             ? $"Presiona {boton} para abrir"

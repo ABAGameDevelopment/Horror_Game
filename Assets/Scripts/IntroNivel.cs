@@ -7,6 +7,8 @@ public class IntroNivel : MonoBehaviour
     [Header("Referencias")]
     [SerializeField] private Transform camara;
     [SerializeField] private Light[] luces;
+    [SerializeField] private AudioSource audioSource;
+    [SerializeField] private AudioClip sonidoLuces;
 
     [Header("Animacion inicial")]
     [SerializeField] private float duracionMirada = 4f;
@@ -58,6 +60,9 @@ public class IntroNivel : MonoBehaviour
                 }
 
                 lucesApagadas = true;
+
+                if (audioSource != null && sonidoLuces != null)
+                    audioSource.PlayOneShot(sonidoLuces);
             }
 
             // Mira a la izquierda, al centro y a la derecha.

@@ -619,7 +619,6 @@ public class ObjetivoUI : MonoBehaviour
         if (llaveSalidaEncontrada)
             return;
 
-        // Evitar registrar la llave antes de encontrar las notas.
         if (notasEncontradas < totalNotas)
             return;
 
@@ -631,9 +630,9 @@ public class ObjetivoUI : MonoBehaviour
         textoObjetivo.text =
             "Encuentra la llave y dirígete al auditorio.\n" +
             $"Encuentra las 3 notas del edificio ({totalNotas}/{totalNotas}).\n" +
-            "Sal del edificio.";
+            "Escapa del campus.";
 
-        Debug.Log("¡Has encontrado la llave de salida!");
+        Debug.Log("¡Has encontrado la llave de salida! Ahora debes escapar del campus.");
     }
 
     public void CompletarObjetivoFinal()

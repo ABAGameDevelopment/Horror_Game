@@ -10,7 +10,7 @@ public static class Level3SceneryBuilder
 {
     private const string ScenePath = "Assets/Scenes/Level3/Level3.unity";
     private const string SceneAltPath = "Assets/Scenes/Level3/University.unity";
-    private const string SceneryVersionName = "Escenografia_Nivel3_LaCalle_v4";
+    private const string SceneryVersionName = "Escenografia_Nivel3_LaCalle_v8";
     private const string EnemyGlbPath = "Assets/Prefabs/Enemy/Enemy.glb";
 
     // Prefabs de Vehículos
@@ -48,6 +48,8 @@ public static class Level3SceneryBuilder
     private const string SkyMidnightPath = "Assets/Scenes/Level3/SkyMidnight.mat";
 
     // Fotos de Pistas
+    private const string MatNotaPath = "Assets/Materials/Notas/Notas.mat";
+    private const string BicyclePrefabPath = "Assets/Models/Bicycle Models/Bicycle Model #5/Prefab/Low-Poly Bicycle # 5.prefab";
     private const string Nota1Path = "Assets/Photos/Nota1.png";
     private const string Nota2Path = "Assets/Photos/Nota2.png";
     private const string Nota3Path = "Assets/Photos/Nota3.png";
@@ -97,6 +99,12 @@ public static class Level3SceneryBuilder
                 obj.name.StartsWith("Canvas_TituloIntroNivel2") ||
                 obj.name.StartsWith("HUD_Nivel2") ||
                 obj.name.StartsWith("Canvas_Nivel2"))
+            {
+                Undo.DestroyObjectImmediate(obj);
+                continue;
+            }
+
+                        if (obj.name.StartsWith("Cofre_Abierto_Vapor") || obj.name.Contains("CarEngineBay") || obj.name.Contains("CarHood"))
             {
                 Undo.DestroyObjectImmediate(obj);
                 continue;
@@ -571,19 +579,7 @@ public static class Level3SceneryBuilder
             CrearLuzIntermitente(car.transform, new Vector3(0.72f, 0.55f, -1.85f));
             CrearLuzIntermitente(car.transform, new Vector3(-0.72f, 0.55f, -1.85f));
 
-            // Motor Bay y Cofre abierto
-            GameObject motorBayModel = AssetDatabase.LoadAssetAtPath<GameObject>(CarEngineBayModelPath);
-            if (motorBayModel != null)
-            {
-                Object.Instantiate(motorBayModel, car.transform.position + new Vector3(0f, 0.5f, 1.1f), car.transform.rotation, carStation.transform);
-            }
-
-            GameObject hoodModel = AssetDatabase.LoadAssetAtPath<GameObject>(CarHoodModelPath);
-            if (hoodModel != null)
-            {
-                GameObject hood = Object.Instantiate(hoodModel, car.transform.position + new Vector3(0f, 0.75f, 1.25f), car.transform.rotation * Quaternion.Euler(-38f, 0f, 0f), carStation.transform);
-                hood.name = "Cofre_Abierto_Vapor";
-            }
+            // Cofre original del auto intacto (sin aditamento levantado)
         }
 
         // 3. Conos de tráfico caídos detrás
@@ -636,32 +632,18 @@ public static class Level3SceneryBuilder
         hito.transform.localPosition = new Vector3(1.2f, 0.45f, 0.5f);
         hito.transform.localScale = new Vector3(0.55f, 0.9f, 0.55f);
 
-        // PISTA 1: FOTOGRAFÍA DEL CAMPUS
+        // PISTA 1: FOTOGRAFÍA DEL CAMPUS (Con material dorado brillante y foco cenital como Nivel 1)
         Sprite spNota1 = AssetDatabase.LoadAssetAtPath<Sprite>(Nota1Path);
+        Material matNota = AssetDatabase.LoadAssetAtPath<Material>(MatNotaPath);
         GameObject pista1 = new GameObject("Pista_1_FotografiaCampus");
         pista1.transform.SetParent(z1.transform);
         pista1.transform.localPosition = new Vector3(1.2f, 0.98f, 0.5f);
 
-        GameObject docMesh = GameObject.CreatePrimitive(PrimitiveType.Quad);
-        docMesh.name = "Malla_Foto";
-        docMesh.transform.SetParent(pista1.transform);
-        docMesh.transform.localPosition = Vector3.zero;
-        docMesh.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-        docMesh.transform.localScale = new Vector3(0.42f, 0.42f, 1f);
-
-        // Halo de luz misterioso sobre la foto
-        GameObject halo = new GameObject("Luz_Halo_Pista1");
-        halo.transform.SetParent(pista1.transform);
-        halo.transform.localPosition = new Vector3(0f, 0.25f, 0f);
-        Light lHalo = halo.AddComponent<Light>();
-        lHalo.type = LightType.Point;
-        lHalo.color = new Color(1f, 0.85f, 0.4f);
-        lHalo.range = 2.5f;
-        lHalo.intensity = 1.2f;
+        ConfigurarMallaYLuzNotaBrillosa(pista1, matNota);
 
         BoxCollider col1 = pista1.AddComponent<BoxCollider>();
         col1.isTrigger = true;
-        col1.size = new Vector3(3f, 2.5f, 3f);
+        col1.size = new Vector3(3.5f, 2.5f, 3.5f);
 
         PistaInteractuableLevel3 p1Comp = pista1.AddComponent<PistaInteractuableLevel3>();
         ConfigurarPista(
@@ -698,44 +680,34 @@ public static class Level3SceneryBuilder
             brokenLight.AddComponent<HorrorLightFlicker>().Configure(0.1f, 2.5f, 12f, 0.08f);
         }
 
-        // 2. Cajas de suministros volcadas y bidones
-        GameObject cratePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(WoodCrateModelPath);
-        if (cratePrefab != null)
-        {
-            Object.Instantiate(cratePrefab, new Vector3(6.8f, 0f, 73f), Quaternion.Euler(0f, 22f, 0f), z2.transform);
-            Object.Instantiate(cratePrefab, new Vector3(7.2f, 0.4f, 73.2f), Quaternion.Euler(0f, -15f, 0f), z2.transform);
-            Object.Instantiate(cratePrefab, new Vector3(6.2f, 0f, 77f), Quaternion.Euler(20f, 45f, 0f), z2.transform);
-        }
-
+        // 2. Bidones y soporte limpio para el reporte (sin mallas colapsadas)
         GameObject drumPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(OilDrumModelPath);
         if (drumPrefab != null)
         {
-            Object.Instantiate(drumPrefab, new Vector3(6.2f, 0.35f, 76f), Quaternion.Euler(0f, 0f, 90f), z2.transform);
-            Object.Instantiate(drumPrefab, new Vector3(6.5f, 0f, 74f), Quaternion.identity, z2.transform);
+            Object.Instantiate(drumPrefab, new Vector3(5.5f, 0f, 73f), Quaternion.identity, z2.transform);
+            Object.Instantiate(drumPrefab, new Vector3(5.8f, 0.35f, 75f), Quaternion.Euler(0f, 0f, 90f), z2.transform);
         }
 
-        GameObject dumpsterPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(DumpsterModelPath);
-        if (dumpsterPrefab != null)
-        {
-            Object.Instantiate(dumpsterPrefab, new Vector3(7.8f, 0f, 79f), Quaternion.Euler(0f, -110f, 0f), z2.transform);
-        }
+        // Peana de concreto limpia para presentar la nota
+        GameObject soporteNota = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        soporteNota.name = "Soporte_Reporte";
+        soporteNota.transform.SetParent(z2.transform);
+        soporteNota.transform.position = new Vector3(5.2f, 0.45f, 73.8f);
+        soporteNota.transform.localScale = new Vector3(0.7f, 0.9f, 0.7f);
+        soporteNota.GetComponent<Renderer>().sharedMaterial = AssetDatabase.LoadAssetAtPath<Material>(MatBarreraConcretoPath);
 
-        // PISTA 2: REPORTE DE INCIDENTE BIOLÓGICO
+        // PISTA 2: REPORTE DE INCIDENTE BIOLÓGICO (Brillante con foco cenital)
         Sprite spNota2 = AssetDatabase.LoadAssetAtPath<Sprite>(Nota2Path);
+        Material matNota = AssetDatabase.LoadAssetAtPath<Material>(MatNotaPath);
         GameObject pista2 = new GameObject("Pista_2_ReporteIncidente");
         pista2.transform.SetParent(z2.transform);
-        pista2.transform.position = new Vector3(6.8f, 0.85f, 73.2f);
+        pista2.transform.position = new Vector3(5.2f, 0.96f, 73.8f);
 
-        GameObject docMesh = GameObject.CreatePrimitive(PrimitiveType.Quad);
-        docMesh.name = "Malla_Reporte";
-        docMesh.transform.SetParent(pista2.transform);
-        docMesh.transform.localPosition = Vector3.zero;
-        docMesh.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-        docMesh.transform.localScale = new Vector3(0.4f, 0.4f, 1f);
+        ConfigurarMallaYLuzNotaBrillosa(pista2, matNota);
 
         BoxCollider col2 = pista2.AddComponent<BoxCollider>();
         col2.isTrigger = true;
-        col2.size = new Vector3(3f, 2.5f, 3f);
+        col2.size = new Vector3(3.5f, 2.5f, 3.5f);
 
         PistaInteractuableLevel3 p2Comp = pista2.AddComponent<PistaInteractuableLevel3>();
         ConfigurarPista(
@@ -834,7 +806,7 @@ public static class Level3SceneryBuilder
         audioMonstruo.volume = 0.55f;
         audioMonstruo.rolloffMode = AudioRolloffMode.Logarithmic;
 
-        AudioClip clipMujer = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/MujerLlorando.mp3");
+        AudioClip clipMujer = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/MujerLlorando.mp3");
         if (clipMujer != null)
         {
             audioMonstruo.clip = clipMujer;
@@ -847,12 +819,13 @@ public static class Level3SceneryBuilder
 
         Vector3[] posicionesPatrulla = new Vector3[]
         {
-            new Vector3(-3.5f, 1.5f, 18f),  // Cerca del auto averiado y el hito
-            new Vector3(4.0f,  1.5f, 42f),  // Curva abierta
-            new Vector3(-4.5f, 1.5f, 68f),  // Choque de camion / auto azul
-            new Vector3(3.0f,  1.5f, 92f),  // Tramo oscuro entre coniferas
-            new Vector3(-3.0f, 1.5f, 118f), // Frente a la caseta con el expediente
-            new Vector3(1.5f,  1.5f, 138f)  // Cerca del derrumbe y la bicicleta
+            new Vector3(-3.5f, 0.15f, 18f),  // Cerca del auto averiado y el hito
+            new Vector3(3.5f,  0.15f, 38f),  // Curva abierta derecha
+            new Vector3(-3.8f, 0.15f, 62f),  // Choque de camion / auto azul
+            new Vector3(3.0f,  0.15f, 85f),  // Tramo oscuro entre coniferas
+            new Vector3(-3.2f, 0.15f, 110f), // Frente a la parada con el expediente
+            new Vector3(2.0f,  0.15f, 138f), // Cerca del derrumbe y la bicicleta
+            new Vector3(-2.0f, 0.15f, 75f)   // Retorno al centro
         };
 
         Transform[] transformsPuntos = new Transform[posicionesPatrulla.Length];
@@ -989,7 +962,8 @@ public static class Level3SceneryBuilder
         }
 
         Transform camTransform = Camera.main != null ? Camera.main.transform : (player != null ? player.transform.Find("Camera") : null);
-        AudioClip clipScreamer = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/Screamer.mp3");
+        AudioClip clipScreamer = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Screamer.mp3");
+        AudioClip clipMusicaScreamer = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/ScreamerMusic.mp3");
 
         var so = new SerializedObject(mj);
         if (player != null)
@@ -1008,6 +982,8 @@ public static class Level3SceneryBuilder
         directScreamer.playOnAwake = false;
         so.FindProperty("audioScreamer").objectReferenceValue = directScreamer;
         so.FindProperty("sonidoScreamer").objectReferenceValue = clipScreamer;
+        so.FindProperty("musicaScreamer").objectReferenceValue = clipMusicaScreamer;
+        so.FindProperty("audioMusicaScreamer").objectReferenceValue = directScreamer;
         so.FindProperty("duracionScreamer").floatValue = 2.5f;
         so.FindProperty("posicionScreamer").vector3Value = new Vector3(0f, -1.1f, 0.95f);
         so.FindProperty("distanciaAtaque").floatValue = 0.35f;
@@ -1171,50 +1147,22 @@ public static class Level3SceneryBuilder
         biciZone.transform.SetParent(root.transform);
         biciZone.transform.position = new Vector3(5.2f, 0f, 127f);
 
-        // Bicicleta apoyada en la barrera Jersey
+        // Bicicleta apoyada lista para el escape
         GameObject biciObj = new GameObject("Bicicleta_Regreso_Universidad");
         biciObj.transform.SetParent(biciZone.transform);
         biciObj.transform.localPosition = Vector3.zero;
-        biciObj.transform.localRotation = Quaternion.Euler(0f, 185f, 6f); // Apuntando hacia atrás (hacia la universidad)
+        biciObj.transform.localRotation = Quaternion.Euler(0f, 185f, 5f); // Apuntando hacia atrás (hacia la universidad)
 
-        // Rueda Trasera
-        GameObject ruedaT = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        ruedaT.name = "Rueda_Trasera";
-        ruedaT.transform.SetParent(biciObj.transform);
-        ruedaT.transform.localPosition = new Vector3(0f, 0.35f, -0.65f);
-        ruedaT.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
-        ruedaT.transform.localScale = new Vector3(0.72f, 0.06f, 0.72f);
-
-        // Rueda Delantera
-        GameObject ruedaD = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        ruedaD.name = "Rueda_Delantera";
-        ruedaD.transform.SetParent(biciObj.transform);
-        ruedaD.transform.localPosition = new Vector3(0f, 0.35f, 0.65f);
-        ruedaD.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
-        ruedaD.transform.localScale = new Vector3(0.72f, 0.06f, 0.72f);
-
-        // Cuadro
-        GameObject cuadro = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        cuadro.name = "Cuadro";
-        cuadro.transform.SetParent(biciObj.transform);
-        cuadro.transform.localPosition = new Vector3(0f, 0.58f, 0f);
-        cuadro.transform.localRotation = Quaternion.Euler(60f, 0f, 0f);
-        cuadro.transform.localScale = new Vector3(0.08f, 0.7f, 0.08f);
-
-        // Manillar
-        GameObject manillar = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        manillar.name = "Manillar";
-        manillar.transform.SetParent(biciObj.transform);
-        manillar.transform.localPosition = new Vector3(0f, 0.95f, 0.55f);
-        manillar.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
-        manillar.transform.localScale = new Vector3(0.06f, 0.38f, 0.06f);
-
-        // Asiento
-        GameObject asiento = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        asiento.name = "Asiento";
-        asiento.transform.SetParent(biciObj.transform);
-        asiento.transform.localPosition = new Vector3(0f, 0.85f, -0.25f);
-        asiento.transform.localScale = new Vector3(0.22f, 0.06f, 0.3f);
+        // Instanciar el modelo oficial descargado: Low-Poly Bicycle # 5
+        GameObject biciPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(BicyclePrefabPath);
+        if (biciPrefab != null)
+        {
+            GameObject biciModel = (GameObject)PrefabUtility.InstantiatePrefab(biciPrefab, biciObj.transform);
+            biciModel.name = "Modelo_Bicicleta_3D";
+            biciModel.transform.localPosition = new Vector3(0f, 0.05f, 0f);
+            biciModel.transform.localRotation = Quaternion.identity;
+            biciModel.transform.localScale = Vector3.one * 1.0f;
+        }
 
         // Farol de dinamo delantero que ilumina el camino de regreso
         GameObject farolGo = new GameObject("Farol_Dinamo_Bicicleta");
@@ -1237,13 +1185,6 @@ public static class Level3SceneryBuilder
         lBici.color = new Color(0.3f, 0.85f, 1f);
         lBici.range = 6.5f;
         lBici.intensity = 2.5f;
-
-        // Eliminar colliders de partes
-        Collider[] childCols = biciObj.GetComponentsInChildren<Collider>();
-        foreach (var c in childCols)
-        {
-            if (c.gameObject != biciObj) Object.DestroyImmediate(c);
-        }
 
         BoxCollider triggerBici = biciObj.AddComponent<BoxCollider>();
         triggerBici.isTrigger = true;
@@ -1291,11 +1232,33 @@ public static class Level3SceneryBuilder
 
     private static void UbicarJugador()
     {
+        // Asegurar EventSystem
+        if (Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
+        {
+            GameObject es = new GameObject("EventSystem");
+            es.AddComponent<UnityEngine.EventSystems.EventSystem>();
+            es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+            Undo.RegisterCreatedObjectUndo(es, "Crear EventSystem");
+        }
+
         GameObject player = GameObject.FindWithTag("Player");
         if (player == null)
         {
             PlayerController pc = Object.FindAnyObjectByType<PlayerController>();
             if (pc != null) player = pc.gameObject;
+        }
+
+        // Si falta el jugador en la escena, cargarlo desde el Prefab oficial
+        if (player == null)
+        {
+            GameObject playerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Player/Player.prefab");
+            if (playerPrefab != null)
+            {
+                player = (GameObject)PrefabUtility.InstantiatePrefab(playerPrefab);
+                player.name = "Player";
+                Undo.RegisterCreatedObjectUndo(player, "Instanciar Player");
+                Debug.Log("<color=green>[Nivel 3]</color> Player Prefab instanciado en la escena con su camara.");
+            }
         }
 
         if (player != null)
@@ -1316,6 +1279,10 @@ public static class Level3SceneryBuilder
             if (cc != null) cc.enabled = true;
 
             // Desactivar y destruir IntroNivel residual de Nivel 1 en Nivel 3 para garantizar control inmediato
+            PasosJugador pasos = player.GetComponent<PasosJugador>();
+            if (pasos == null) pasos = player.AddComponent<PasosJugador>();
+            pasos.enabled = true;
+
             IntroNivel intro = player.GetComponentInChildren<IntroNivel>(true);
             if (intro != null)
             {
@@ -1328,6 +1295,45 @@ public static class Level3SceneryBuilder
 
             Debug.Log("<color=green>[Nivel 3]</color> Jugador posicionado y desbloqueado correctamente a un costado del auto averiado.");
         }
+    }
+
+        private static void ConfigurarMallaYLuzNotaBrillosa(GameObject pistaObj, Material matNota)
+    {
+        GameObject docMesh = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        docMesh.name = "Malla_Nota_Brillosa";
+        docMesh.transform.SetParent(pistaObj.transform);
+        docMesh.transform.localPosition = Vector3.zero;
+        docMesh.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        docMesh.transform.localScale = new Vector3(0.48f, 0.48f, 1f);
+
+        if (matNota != null)
+        {
+            docMesh.GetComponent<Renderer>().sharedMaterial = matNota;
+        }
+
+        // 1. Spotlight cenital potente directo sobre la carta (igual que en Nivel 1)
+        GameObject spotGo = new GameObject("SpotLight_Nota");
+        spotGo.transform.SetParent(pistaObj.transform);
+        spotGo.transform.localPosition = new Vector3(0f, 2.0f, 0f);
+        spotGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        Light sl = spotGo.AddComponent<Light>();
+        sl.type = LightType.Spot;
+        sl.spotAngle = 65f;
+        sl.innerSpotAngle = 35f;
+        sl.color = new Color(1f, 0.95f, 0.65f); // Luz dorada brillante
+        sl.intensity = 6.0f;
+        sl.range = 5.0f;
+        sl.shadows = LightShadows.None;
+
+        // 2. Halo puntual envolvente dorado para brillo ambiental
+        GameObject haloGo = new GameObject("Halo_Puntual_Nota");
+        haloGo.transform.SetParent(pistaObj.transform);
+        haloGo.transform.localPosition = new Vector3(0f, 0.25f, 0f);
+        Light hl = haloGo.AddComponent<Light>();
+        hl.type = LightType.Point;
+        hl.color = new Color(1f, 0.88f, 0.2f);
+        hl.intensity = 2.5f;
+        hl.range = 3.0f;
     }
 
     private static void ConfigurarPista(PistaInteractuableLevel3 pista, string nombre, string descripcion, bool esExpediente, Sprite img)

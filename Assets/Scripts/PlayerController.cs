@@ -25,6 +25,8 @@ public class PlayerController : MonoBehaviour
 
     public float SprintEnergy => sprintEnergy;
     public bool IsSprinting => sprinting;
+    public bool EstaMoviendose { get; private set; }
+    public bool EstaCorriendo { get; private set; }
 
     public event Action<float> SprintEnergyChanged;
 
@@ -257,14 +259,17 @@ public class PlayerController : MonoBehaviour
     transform.right * effectiveMove.x +
     transform.forward * effectiveMove.y;
 
-        // Comprobar si el jugador está intentando correr.
         bool tieneMovimiento = effectiveMove.sqrMagnitude > 0.01f;
 
+        EstaMoviendose = tieneMovimiento;
+
         sprinting =
-    sprintInputHeld &&
-    tieneMovimiento &&
-    sprintEnergy > 0.001f &&
-    !sprintBloqueado;
+            sprintInputHeld &&
+            tieneMovimiento &&
+            sprintEnergy > 0.001f &&
+            !sprintBloqueado;
+
+        EstaCorriendo = sprinting;
 
         // Aplicar la velocidad correspondiente.
         float velocidadActual = sprinting ? sprintSpeed : speed;

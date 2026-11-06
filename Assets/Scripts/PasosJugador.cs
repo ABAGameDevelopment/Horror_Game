@@ -76,16 +76,7 @@ public class PasosJugador : MonoBehaviour
         }
 
         // Sonido de correr (Footsteps.mp3)
-        if (sonidoCorrer == null)
-        {
-#if UNITY_EDITOR
-            sonidoCorrer = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Footsteps.mp3");
-#endif
-            if (sonidoCorrer == null)
-                sonidoCorrer = Resources.FindObjectsOfTypeAll<AudioClip>().FirstOrDefault(c => c != null && c.name.ToLower().Contains("footstep"));
-            if (sonidoCorrer == null)
-                sonidoCorrer = sonidoCaminar;
-        }
+        
     }
 
     private void Update()

@@ -12,8 +12,45 @@ public class BicicletaInteractuable : MonoBehaviour
     private bool interactuado = false;
     private Transform transformJugador;
 
+    private void Awake()
+    {
+        AsegurarModelo3D();
+    }
+
+    public void AsegurarModelo3D()
+    {
+        // 1. Eliminar primitivas viejas si aún existen en la escena
+        string[] viejasPartes = new string[] { "Cuadro", "Rueda_Trasera", "Rueda_Delantera", "Manillar", "Asiento" };
+        foreach (var p in viejasPartes)
+        {
+            Transform t = transform.Find(p);
+            if (t != null)
+            {
+                Destroy(t.gameObject);
+            }
+        }
+
+        // 2. Si no tiene el modelo oficial 3D, instanciar Low-Poly Bicycle # 5
+        if (transform.Find("Modelo_Bicicleta_3D") == null)
+        {
+            GameObject prefab = null;
+#if UNITY_EDITOR
+            prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Bicycle Models/Bicycle Model #5/Prefab/Low-Poly Bicycle # 5.prefab");
+#endif
+            if (prefab != null)
+            {
+                GameObject model = Instantiate(prefab, transform);
+                model.name = "Modelo_Bicicleta_3D";
+                model.transform.localPosition = new Vector3(0f, 0.05f, 0f);
+                model.transform.localRotation = Quaternion.identity;
+                model.transform.localScale = Vector3.one;
+            }
+        }
+    }
+
     private void Start()
     {
+        AsegurarModelo3D();
         BuscarJugador();
         if (luzFarolBici != null)
         {
@@ -50,11 +87,15 @@ public class BicicletaInteractuable : MonoBehaviour
                 jugadorEnRango = true;
                 if (Level3Controller.Instance != null)
                 {
-                    bool lista = Level3Controller.Instance.PuedeUsarBicicleta();
-                    string prompt = lista
-                        ? "[E] / [X] Montar la bicicleta y regresar a la universidad"
-                        : "Bicicleta: Aún necesitas encontrar el expediente sobre la criatura";
-                    Level3Controller.Instance.MostrarPrompt(prompt);
+                    bool puedeUsar = Level3Controller.Instance.PuedeUsarBicicleta();
+                    if (puedeUsar)
+                    {
+                        Level3Controller.Instance.MostrarPrompt("[E] / [X] Montar la bicicleta para escapar y regresar a la universidad");
+                    }
+                    else
+                    {
+                        Level3Controller.Instance.MostrarPrompt("[Bicicleta lista para el escape - Encuentra antes el expediente]");
+                    }
                 }
             }
 
@@ -66,19 +107,7 @@ public class BicicletaInteractuable : MonoBehaviour
 
             if (presionoInteraccion)
             {
-                if (Level3Controller.Instance != null && Level3Controller.Instance.PuedeUsarBicicleta())
-                {
-                    interactuado = true;
-                    Level3Controller.Instance.LimpiarPrompt("");
-                    if (indicadorVisual != null) indicadorVisual.SetActive(false);
-
-                    CinematicaEscapeBicicleta escape = gameObject.AddComponent<CinematicaEscapeBicicleta>();
-                    escape.IniciarEscapeCinematico(transform);
-                }
-                else if (Level3Controller.Instance != null)
-                {
-                    Level3Controller.Instance.MostrarMensaje(Level3Controller.Instance.ObtenerMensajeBicicleta(), 4f);
-                }
+                IntentarInteractuar();
             }
         }
         else if (jugadorEnRango)
@@ -89,5 +118,29 @@ public class BicicletaInteractuable : MonoBehaviour
                 Level3Controller.Instance.LimpiarPrompt("");
             }
         }
+    }
+
+    private void IntentarInteractuar()
+    {
+        if (Level3Controller.Instance == null) return;
+
+        if (!Level3Controller.Instance.PuedeUsarBicicleta())
+        {
+            Level3Controller.Instance.MostrarMensaje("No puedes huir todavía. Debes encontrar primero el expediente del origen en la caseta de transbordo.");
+            return;
+        }
+
+        interactuado = true;
+        jugadorEnRango = false;
+        Level3Controller.Instance.LimpiarPrompt("");
+
+        CinematicaEscapeBicicleta cine = UnityEngine.Object.FindAnyObjectByType<CinematicaEscapeBicicleta>();
+        if (cine == null)
+        {
+            GameObject cineGo = new GameObject("CinematicaEscape_Auto");
+            cine = cineGo.AddComponent<CinematicaEscapeBicicleta>();
+        }
+
+        cine.IniciarEscapeCinematico(transform);
     }
 }

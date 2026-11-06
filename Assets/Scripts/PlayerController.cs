@@ -6,7 +6,8 @@ using System;
 public class PlayerController : MonoBehaviour
 {
     [Header("Movement")]
-    [SerializeField] private float speed = 5f;
+    [SerializeField] private float speed = 4.5f;
+    [SerializeField] private float runSpeed = 8.0f;
     [SerializeField] private float gravity = -20f;
     [SerializeField] private float jumpHeight = 1.2f;
 
@@ -26,6 +27,9 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private IntroNivel introNivel;
 
     public event Action LinternaEncendidaPorPrimeraVez;
+
+    public bool EstaCorriendo { get; private set; }
+    public bool EstaMoviendose { get; private set; }
 
     private bool EnIntro
     {
@@ -53,6 +57,7 @@ public class PlayerController : MonoBehaviour
     [Header("Salto")]
     [SerializeField] private int maxJumps = 2;
     private int jumpsUsed = 0;
+    private int ultimoFrameLinterna = -1;
 
     private void Awake()
     {
@@ -68,8 +73,77 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    private void Start()
+    {
+        if (speed < 1f) speed = 4.5f;
+        if (runSpeed < 5f) runSpeed = 8.5f;
+        AsegurarLinterna();
+        PasosJugador pasos = GetComponent<PasosJugador>();
+        if (pasos == null) gameObject.AddComponent<PasosJugador>();
+    }
+
+    public void AsegurarLinterna()
+    {
+        if (luzLinterna == null)
+        {
+            luzLinterna = GetComponentInChildren<Light>();
+        }
+
+        if (luzLinterna == null)
+        {
+            Transform camTransform = playerCamera != null ? playerCamera.transform : (Camera.main != null ? Camera.main.transform : transform.Find("Camera"));
+            if (camTransform == null) camTransform = transform;
+
+            GameObject lampObj = new GameObject("Lampara");
+            lampObj.transform.SetParent(camTransform, false);
+            lampObj.transform.localPosition = new Vector3(0.2f, -0.15f, 0.35f);
+            lampObj.transform.localRotation = Quaternion.identity;
+
+            Light spot = lampObj.AddComponent<Light>();
+            spot.type = LightType.Spot;
+            spot.range = 35f;
+            spot.spotAngle = 65f;
+            spot.innerSpotAngle = 45f;
+            spot.intensity = 2.6f;
+            spot.color = new Color(1f, 0.96f, 0.88f);
+            spot.shadows = LightShadows.Soft;
+
+            luzLinterna = spot;
+        }
+
+        if (audioLinterna == null)
+        {
+            audioLinterna = GetComponent<AudioSource>();
+            if (audioLinterna == null) audioLinterna = gameObject.AddComponent<AudioSource>();
+        }
+
+        if (sonidoLinterna == null)
+        {
+            sonidoLinterna = System.Linq.Enumerable.FirstOrDefault(Resources.FindObjectsOfTypeAll<AudioClip>(), c => c != null && c.name.ToLower().Contains("lampara"));
+#if UNITY_EDITOR
+            if (sonidoLinterna == null)
+                sonidoLinterna = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Lampara.mp3");
+#endif
+        }
+
+        if (luzLinterna != null)
+        {
+            luzLinterna.enabled = linternaEncendida;
+        }
+    }
+
+
     private void Update()
     {
+        // Tecla F directa para linterna (funciona siempre al presionar F, incluso en Nivel 1)
+        if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.fKey.wasPressedThisFrame)
+        {
+            if (NotasUI.Instance == null || !NotasUI.Instance.MostrandoNota)
+            {
+                ToggleLinterna();
+            }
+        }
+
         if (EnIntro || (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota))
         {
             moveInput = Vector2.zero;
@@ -124,18 +198,30 @@ public class PlayerController : MonoBehaviour
     // Acción de linterna: F o botón del control Xbox.
     public void OnLight(InputValue value)
     {
-        if (EnIntro || (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota)) return;
+        if (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota) return;
         if (!value.isPressed) return;
 
         ToggleLinterna();
     }
 
     // Encender o apagar linterna.
-    private void ToggleLinterna()
+    public void ToggleLinterna()
     {
+        // Debounce de frame exacto: evita que OnLight y Update se anulen entre si en el mismo frame
+        if (Time.frameCount == ultimoFrameLinterna)
+            return;
+        ultimoFrameLinterna = Time.frameCount;
+
         if (luzLinterna == null)
         {
-            Debug.LogWarning("No se ha asignado la luz de la linterna en PlayerController.");
+            AsegurarLinterna();
+        PasosJugador pasos = GetComponent<PasosJugador>();
+        if (pasos == null) gameObject.AddComponent<PasosJugador>();
+        }
+
+        if (luzLinterna == null)
+        {
+            Debug.LogWarning("No se ha podido inicializar la luz de la linterna en PlayerController.");
             return;
         }
 
@@ -220,11 +306,30 @@ public class PlayerController : MonoBehaviour
             }
         }
 
+                float baseSpeed = speed > 1f ? speed : 4.5f;
+        float sprintSpeed = runSpeed > baseSpeed ? runSpeed : 8.5f;
+
+        bool corriendo = false;
+        if (Keyboard.current != null && (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed))
+        {
+            corriendo = true;
+        }
+        if (Gamepad.current != null && (Gamepad.current.leftStickButton.isPressed || Gamepad.current.leftShoulder.isPressed))
+        {
+            corriendo = true;
+        }
+
+        bool tieneInput = effectiveMove.sqrMagnitude > 0.01f;
+        EstaMoviendose = tieneInput;
+        EstaCorriendo = corriendo && tieneInput;
+
+        float currentSpeed = EstaCorriendo ? sprintSpeed : baseSpeed;
+
         Vector3 movement =
             transform.right * effectiveMove.x +
             transform.forward * effectiveMove.y;
 
-        movement *= speed;
+        movement *= currentSpeed;
 
         verticalVelocity += gravity * Time.deltaTime;
         movement.y = verticalVelocity;

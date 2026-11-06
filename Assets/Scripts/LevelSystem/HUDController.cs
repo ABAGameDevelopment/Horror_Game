@@ -61,6 +61,7 @@ public class HUDController : MonoBehaviour
         Image panelSalud = RuntimeUI.CrearPanelMarcoTerror(canvas.transform, "PanelSalud", new Vector2(420f, 150f), RuntimeUI.ColorPanelHud);
         panelSalud.raycastTarget = false;
         RuntimeUI.Anclar(panelSalud.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -24f), new Vector2(420f, 150f));
+        panelSalud.gameObject.SetActive(false);
 
         TextMeshProUGUI titSalud = RuntimeUI.CrearTitulo(panelSalud.transform, "TituloSalud", "ESTADO VITAL", 24f, TextAlignmentOptions.Left, RuntimeUI.ColorRojoBrillante);
         RuntimeUI.Anclar(titSalud.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -14f), new Vector2(380f, 28f));

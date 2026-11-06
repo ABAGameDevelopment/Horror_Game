@@ -82,8 +82,8 @@ public static class Level3Bootstrap
             typeof(InteraccionJugador).GetField("notasUI", flags)?.SetValue(ij, nUI);
         }
 
-        AsegurarSaludJugador();
         AsegurarDesbloqueoJugador();
+        AsegurarSaludJugador();
         AsegurarMonstruo();
         AsegurarSueloYLimites();
 
@@ -112,12 +112,40 @@ public static class Level3Bootstrap
 
     private static void AsegurarDesbloqueoJugador()
     {
+        // 0. Asegurar EventSystem si falta
+        if (UnityEngine.Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
+        {
+            GameObject es = new GameObject("EventSystem");
+            es.AddComponent<UnityEngine.EventSystems.EventSystem>();
+            es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+        }
+
         GameObject jugador = GameObject.FindWithTag("Player");
         if (jugador == null)
         {
             PlayerController controlador = UnityEngine.Object.FindAnyObjectByType<PlayerController>();
             if (controlador != null)
                 jugador = controlador.gameObject;
+        }
+
+        // Si no hay jugador ni camara en la escena, instanciar el prefab de Player
+        if (jugador == null)
+        {
+            GameObject playerPrefab = Resources.FindObjectsOfTypeAll<GameObject>().FirstOrDefault(go => go.name == "Player" && go.GetComponent<PlayerController>() != null);
+#if UNITY_EDITOR
+            if (playerPrefab == null)
+                playerPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Player/Player.prefab");
+#endif
+            if (playerPrefab != null)
+            {
+                jugador = UnityEngine.Object.Instantiate(playerPrefab, new Vector3(1.1f, 1.25f, -1.5f), Quaternion.Euler(0f, 8f, 0f));
+                jugador.name = "Player";
+                Debug.Log("<color=green>[Nivel 3]</color> Player y Camara instanciados correctamente en la carretera.");
+            }
+            else
+            {
+                Debug.LogError("[Nivel 3] No se encontro el prefab Player en Assets/Prefabs/Player/Player.prefab");
+            }
         }
 
         if (jugador != null)
@@ -209,11 +237,85 @@ public static class Level3Bootstrap
             muerte = CrearSistemaMuerte(jugador);
         }
 
-        // 4. Configurar y activar el monstruo
+        // 4. Configurar o instanciar el monstruo oficial
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
         MonstruoIA ia = UnityEngine.Object.FindAnyObjectByType<MonstruoIA>();
+
+        if (ia == null)
+        {
+            GameObject enemyObj = new GameObject("Enemy");
+            enemyObj.transform.position = new Vector3(-2.8f, 0.2f, 22f); // Cerca del inicio para que el jugador lo vea pasear de inmediato
+            enemyObj.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+            enemyObj.transform.localScale = Vector3.one * 1.5f;
+
+            MeshFilter mf = enemyObj.AddComponent<MeshFilter>();
+            MeshRenderer mr = enemyObj.AddComponent<MeshRenderer>();
+#if UNITY_EDITOR
+            Object[] assets = UnityEditor.AssetDatabase.LoadAllAssetsAtPath("Assets/Prefabs/Enemy/Enemy.glb");
+            foreach (var a in assets)
+            {
+                if (a is Mesh m && mf.sharedMesh == null) mf.sharedMesh = m;
+                if (a is Material mat && mr.sharedMaterial == null) mr.sharedMaterial = mat;
+            }
+#endif
+            if (mf.sharedMesh == null)
+            {
+                var meshes = Resources.FindObjectsOfTypeAll<Mesh>();
+                mf.sharedMesh = meshes.FirstOrDefault(m => m.name.ToLower().Contains("enemy") || m.name.ToLower().Contains("monster"));
+            }
+            if (mr.sharedMaterial == null)
+            {
+                var mats = Resources.FindObjectsOfTypeAll<Material>();
+                mr.sharedMaterial = mats.FirstOrDefault(m => m.name.ToLower().Contains("skin") || m.name.ToLower().Contains("enemy"));
+            }
+
+            CapsuleCollider col = enemyObj.AddComponent<CapsuleCollider>();
+            col.center = Vector3.zero;
+            col.radius = 0.35f;
+            col.height = 1.99f;
+
+            UnityEngine.AI.NavMeshAgent ag = enemyObj.AddComponent<UnityEngine.AI.NavMeshAgent>();
+            ag.radius = 0.35f;
+            ag.height = 1.9923558f;
+            ag.baseOffset = 0.9961779f;
+            ag.speed = 2.2f;
+            ag.acceleration = 8f;
+            ag.angularSpeed = 360f;
+            ag.stoppingDistance = 1.2f;
+
+            GameObject pvGo = new GameObject("PuntoVision");
+            pvGo.transform.SetParent(enemyObj.transform);
+            pvGo.transform.localPosition = new Vector3(0f, 0.81f, 0f);
+
+            AudioSource audioMonstruo = enemyObj.AddComponent<AudioSource>();
+            audioMonstruo.spatialBlend = 1.0f;
+            audioMonstruo.minDistance = 2f;
+            audioMonstruo.maxDistance = 28f;
+            audioMonstruo.loop = true;
+            audioMonstruo.volume = 0.6f;
+
+            AudioClip clipLlorando = Resources.FindObjectsOfTypeAll<AudioClip>().FirstOrDefault(c => c.name.ToLower().Contains("llorando") || c.name.ToLower().Contains("screamer"));
+            if (clipLlorando != null)
+            {
+                audioMonstruo.clip = clipLlorando;
+                audioMonstruo.Play();
+            }
+
+            ia = enemyObj.AddComponent<MonstruoIA>();
+            typeof(MonstruoIA).GetField("agente", flags)?.SetValue(ia, ag);
+            typeof(MonstruoIA).GetField("puntoVision", flags)?.SetValue(ia, pvGo.transform);
+            typeof(MonstruoIA).GetField("velocidadPatrulla", flags)?.SetValue(ia, 2.0f);
+            typeof(MonstruoIA).GetField("velocidadPersecucion", flags)?.SetValue(ia, 3.8f);
+            typeof(MonstruoIA).GetField("distanciaVision", flags)?.SetValue(ia, 13f);
+            typeof(MonstruoIA).GetField("anguloVision", flags)?.SetValue(ia, 100f);
+            typeof(MonstruoIA).GetField("distanciaPerdida", flags)?.SetValue(ia, 22f);
+            typeof(MonstruoIA).GetField("tiempoBusqueda", flags)?.SetValue(ia, 4.5f);
+            typeof(MonstruoIA).GetField("distanciaCaptura", flags)?.SetValue(ia, 1.5f);
+            Debug.Log("<color=green>[Nivel 3]</color> Monstruo Enemy instanciado automaticamente patrullando carretera.");
+        }
+
         if (ia != null)
         {
-            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             if (jugador != null)
             {
                 typeof(MonstruoIA).GetField("jugador", flags)?.SetValue(ia, jugador.transform);
@@ -223,23 +325,23 @@ public static class Level3Bootstrap
                 typeof(MonstruoIA).GetField("muerteJugador", flags)?.SetValue(ia, muerte);
             }
 
-            // Puntos de patrullaje a lo largo de toda la carretera (Z = 15 a 150)
-            Transform[] puntos = (Transform[])typeof(MonstruoIA).GetField("puntosPatrullaje", flags)?.GetValue(ia);
-            if (puntos == null || puntos.Length < 4)
+            // Puntos de patrullaje a lo largo de toda la carretera (Z = 18 a 145)
+            float[] zPositions = new float[] { 20f, 38f, 58f, 78f, 98f, 118f, 138f };
+            GameObject grupoPuntos = GameObject.Find("Puntos_Patrullaje_Carretera_Generados");
+            if (grupoPuntos == null) grupoPuntos = new GameObject("Puntos_Patrullaje_Carretera_Generados");
+
+            Transform[] puntos = new Transform[zPositions.Length];
+            for (int i = 0; i < zPositions.Length; i++)
             {
-                float[] zPositions = new float[] { 18f, 38f, 58f, 78f, 98f, 118f, 138f, 150f };
-                GameObject grupoPuntos = new GameObject("Puntos_Patrullaje_Carretera_Generados");
-                puntos = new Transform[zPositions.Length];
-                for (int i = 0; i < zPositions.Length; i++)
-                {
-                    GameObject pGo = new GameObject("PuntoPatrulla_" + i);
-                    pGo.transform.SetParent(grupoPuntos.transform);
-                    float x = (i % 2 == 0) ? -2.8f : 2.8f;
-                    pGo.transform.position = new Vector3(x, 0.2f, zPositions[i]);
-                    puntos[i] = pGo.transform;
-                }
-                typeof(MonstruoIA).GetField("puntosPatrullaje", flags)?.SetValue(ia, puntos);
+                string pName = "PuntoPatrulla_" + i;
+                Transform existing = grupoPuntos.transform.Find(pName);
+                GameObject pGo = existing != null ? existing.gameObject : new GameObject(pName);
+                pGo.transform.SetParent(grupoPuntos.transform);
+                float x = (i % 2 == 0) ? -2.8f : 2.8f;
+                pGo.transform.position = new Vector3(x, 0.2f, zPositions[i]);
+                puntos[i] = pGo.transform;
             }
+            typeof(MonstruoIA).GetField("puntosPatrullaje", flags)?.SetValue(ia, puntos);
 
             // Snap del agente sobre el NavMesh y activacion de movimiento
             UnityEngine.AI.NavMeshAgent agent = ia.GetComponent<UnityEngine.AI.NavMeshAgent>();
@@ -247,18 +349,24 @@ public static class Level3Bootstrap
             {
                 agent.enabled = false;
                 UnityEngine.AI.NavMeshHit hit;
-                if (UnityEngine.AI.NavMesh.SamplePosition(ia.transform.position, out hit, 15f, UnityEngine.AI.NavMesh.AllAreas))
+                Vector3 targetSpawn = new Vector3(-2.8f, 0.2f, 22f);
+                if (UnityEngine.AI.NavMesh.SamplePosition(targetSpawn, out hit, 15f, UnityEngine.AI.NavMesh.AllAreas))
                 {
                     ia.transform.position = hit.position;
                 }
                 agent.enabled = true;
-                agent.speed = 2.2f;
+                agent.speed = 2.0f;
                 agent.acceleration = 8f;
                 agent.isStopped = false;
+                if (UnityEngine.AI.NavMesh.SamplePosition(ia.transform.position, out hit, 5f, UnityEngine.AI.NavMesh.AllAreas))
+                {
+                    agent.Warp(hit.position);
+                }
             }
 
             ia.enabled = true;
-            Debug.Log("[Nivel 3] Monstruo y sistema de screamer activados y patrullando por toda la carretera.");
+            typeof(MonstruoIA).GetMethod("ElegirDestinoPatrulla", flags)?.Invoke(ia, null);
+            Debug.Log("<color=green>[Nivel 3]</color> Monstruo activado exitosamente patrullando en Z=22m con screamer funcional.");
         }
     }
 

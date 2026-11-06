@@ -19,6 +19,7 @@ public static class Level3Bootstrap
         if (!EsNivel3(escena))
             return;
 
+        AsegurarSueloYLimites();
         CrearSistemas(escena);
     }
 
@@ -544,6 +545,63 @@ public static class Level3Bootstrap
 
             if (matSuelo != null)
                 suelo.GetComponent<Renderer>().sharedMaterial = matSuelo;
+        }
+
+        // 3. Asegurar materiales de carretera y corregir cualquier material rosado/nulo
+        Material matBlanco = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(m => m.name == "Mat_LineaBlanca");
+#if UNITY_EDITOR
+        if (matBlanco == null)
+            matBlanco = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Level2/Mat_LineaBlanca.mat");
+#endif
+        if (matBlanco == null)
+        {
+            Shader sh = Shader.Find("Universal Render Pipeline/Lit");
+            if (sh == null) sh = Shader.Find("Universal Render Pipeline/Simple Lit");
+            if (sh == null) sh = Shader.Find("Universal Render Pipeline/Unlit");
+            if (sh != null)
+            {
+                matBlanco = new Material(sh);
+                matBlanco.name = "Mat_LineaBlanca_Runtime";
+                matBlanco.color = new Color(0.95f, 0.95f, 0.95f, 1f);
+            }
+        }
+
+        foreach (var rend in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (rend == null) continue;
+            string goName = rend.gameObject.name;
+
+            if (goName == "Linea_Blanca_Acotamiento" && matBlanco != null)
+            {
+                rend.sharedMaterial = matBlanco;
+                continue;
+            }
+
+            if ((goName.StartsWith("Acotamiento") || goName == "Suelo_Bosque_Carretera") && matSuelo != null)
+            {
+                var curMat = rend.sharedMaterial;
+                if (curMat == null || curMat.shader == null || curMat.shader.name == "Hidden/InternalErrorShader" || curMat.name.StartsWith("Default"))
+                {
+                    rend.sharedMaterial = matSuelo;
+                }
+                continue;
+            }
+
+            var mats = rend.sharedMaterials;
+            bool changed = false;
+            for (int i = 0; i < mats.Length; i++)
+            {
+                if (mats[i] == null || mats[i].shader == null || mats[i].shader.name == "Hidden/InternalErrorShader" || mats[i].name.StartsWith("Default"))
+                {
+                    if (goName.Contains("Linea") || goName.Contains("Line") || goName.Contains("Acotamiento"))
+                        mats[i] = matBlanco != null ? matBlanco : matSuelo;
+                    else if (matSuelo != null)
+                        mats[i] = matSuelo;
+                    changed = true;
+                }
+            }
+            if (changed)
+                rend.sharedMaterials = mats;
         }
 
         // Ya no se generan los limites de inicio y fin de carretera.

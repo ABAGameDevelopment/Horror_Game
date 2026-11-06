@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -53,7 +54,73 @@ public class Level3Controller : MonoBehaviour
 
     private void Start()
     {
+        CorregirMaterialesRosas();
         MostrarMensaje(mensajeAutoAveriado, 6f);
+    }
+
+    private void CorregirMaterialesRosas()
+    {
+        Material matBlanco = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(m => m.name == "Mat_LineaBlanca");
+#if UNITY_EDITOR
+        if (matBlanco == null)
+            matBlanco = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Level2/Mat_LineaBlanca.mat");
+#endif
+        if (matBlanco == null)
+        {
+            Shader sh = Shader.Find("Universal Render Pipeline/Lit");
+            if (sh == null) sh = Shader.Find("Universal Render Pipeline/Simple Lit");
+            if (sh == null) sh = Shader.Find("Universal Render Pipeline/Unlit");
+            if (sh != null)
+            {
+                matBlanco = new Material(sh);
+                matBlanco.name = "Mat_LineaBlanca_Runtime";
+                matBlanco.color = new Color(0.95f, 0.95f, 0.95f, 1f);
+            }
+        }
+
+        Material matAsfalto = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(m => m.name == "Mat_AsfaltoEstacionamiento");
+#if UNITY_EDITOR
+        if (matAsfalto == null)
+            matAsfalto = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Level2/Mat_AsfaltoEstacionamiento.mat");
+#endif
+
+        foreach (var rend in FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (rend == null) continue;
+            string goName = rend.gameObject.name;
+
+            if (goName == "Linea_Blanca_Acotamiento" && matBlanco != null)
+            {
+                rend.sharedMaterial = matBlanco;
+                continue;
+            }
+
+            if ((goName.StartsWith("Acotamiento") || goName == "Suelo_Bosque_Carretera") && matAsfalto != null)
+            {
+                var curMat = rend.sharedMaterial;
+                if (curMat == null || curMat.shader == null || curMat.shader.name == "Hidden/InternalErrorShader" || curMat.name.StartsWith("Default"))
+                {
+                    rend.sharedMaterial = matAsfalto;
+                }
+                continue;
+            }
+
+            var mats = rend.sharedMaterials;
+            bool changed = false;
+            for (int i = 0; i < mats.Length; i++)
+            {
+                if (mats[i] == null || mats[i].shader == null || mats[i].shader.name == "Hidden/InternalErrorShader" || mats[i].name.StartsWith("Default"))
+                {
+                    if (goName.Contains("Linea") || goName.Contains("Line") || goName.Contains("Acotamiento"))
+                        mats[i] = matBlanco != null ? matBlanco : matAsfalto;
+                    else if (matAsfalto != null)
+                        mats[i] = matAsfalto;
+                    changed = true;
+                }
+            }
+            if (changed)
+                rend.sharedMaterials = mats;
+        }
     }
 
     private void Update()

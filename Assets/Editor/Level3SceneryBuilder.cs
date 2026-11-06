@@ -38,6 +38,7 @@ public static class Level3SceneryBuilder
     // Materiales y Texturas
     private const string MatAsfaltoPath = "Assets/Materials/Level2/Mat_AsfaltoEstacionamiento.mat";
     private const string MatLineasPath = "Assets/Materials/Level2/Mat_LineasAmarillas.mat";
+    private const string MatLineaBlancaPath = "Assets/Materials/Level2/Mat_LineaBlanca.mat";
     private const string MatCharcoAguaPath = "Assets/Materials/Level2/Mat_CharcoAgua.mat";
     private const string MatBarreraConcretoPath = "Assets/Materials/Level2/Mat_BarreraConcreto.mat";
     private const string MatMarquesinaPath = "Assets/Materials/Level2/Mat_MarquesinaMetal.mat";
@@ -68,11 +69,76 @@ public static class Level3SceneryBuilder
         {
             CleanLegacyUI();
             PurgeLevel2Residues();
+            CorregirMaterialLineasAcotamientoExistentes();
 
             GameObject root = EncontrarRaizNivel3();
             if (root == null || !root.name.Contains(SceneryVersionName))
             {
                 ConstruirEscenografiaCarretera();
+            }
+        }
+    }
+
+    [InitializeOnLoadMethod]
+    private static void RegistrarCorreccionEditor()
+    {
+        EditorApplication.delayCall += CorregirMaterialLineasAcotamientoExistentes;
+    }
+
+    [MenuItem("Tools/Nivel 3/Corregir Material Lineas Blancas")]
+    public static void CorregirMaterialLineasAcotamientoExistentes()
+    {
+        Material matBlanco = AssetDatabase.LoadAssetAtPath<Material>(MatLineaBlancaPath);
+        Material matAsfalto = AssetDatabase.LoadAssetAtPath<Material>(MatAsfaltoPath);
+
+        foreach (var obj in Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (obj == null) continue;
+            var rend = obj.GetComponent<Renderer>();
+            if (rend == null) continue;
+
+            string goName = obj.name;
+            if (goName == "Linea_Blanca_Acotamiento" && matBlanco != null)
+            {
+                if (rend.sharedMaterial != matBlanco)
+                {
+                    rend.sharedMaterial = matBlanco;
+                    EditorUtility.SetDirty(obj);
+                    EditorSceneManager.MarkSceneDirty(obj.scene);
+                }
+                continue;
+            }
+
+            if ((goName.StartsWith("Acotamiento") || goName == "Suelo_Bosque_Carretera") && matAsfalto != null)
+            {
+                var curMat = rend.sharedMaterial;
+                if (curMat == null || curMat.shader == null || curMat.shader.name == "Hidden/InternalErrorShader" || curMat.name.StartsWith("Default"))
+                {
+                    rend.sharedMaterial = matAsfalto;
+                    EditorUtility.SetDirty(obj);
+                    EditorSceneManager.MarkSceneDirty(obj.scene);
+                }
+                continue;
+            }
+
+            var mats = rend.sharedMaterials;
+            bool changed = false;
+            for (int i = 0; i < mats.Length; i++)
+            {
+                if (mats[i] == null || mats[i].shader == null || mats[i].shader.name == "Hidden/InternalErrorShader" || mats[i].name.StartsWith("Default"))
+                {
+                    if (goName.Contains("Linea") || goName.Contains("Line") || goName.Contains("Acotamiento"))
+                        mats[i] = matBlanco != null ? matBlanco : matAsfalto;
+                    else if (matAsfalto != null)
+                        mats[i] = matAsfalto;
+                    changed = true;
+                }
+            }
+            if (changed)
+            {
+                rend.sharedMaterials = mats;
+                EditorUtility.SetDirty(obj);
+                EditorSceneManager.MarkSceneDirty(obj.scene);
             }
         }
     }
@@ -373,6 +439,7 @@ public static class Level3SceneryBuilder
 
         Material matAsfalto = AssetDatabase.LoadAssetAtPath<Material>(MatAsfaltoPath);
         Material matLineas = AssetDatabase.LoadAssetAtPath<Material>(MatLineasPath);
+        Material matLineaBlanca = AssetDatabase.LoadAssetAtPath<Material>(MatLineaBlancaPath);
         Material matCharco = AssetDatabase.LoadAssetAtPath<Material>(MatCharcoAguaPath);
         Material matBarrera = AssetDatabase.LoadAssetAtPath<Material>(MatBarreraConcretoPath);
 
@@ -435,6 +502,7 @@ public static class Level3SceneryBuilder
             sideLine.transform.SetParent(env.transform);
             sideLine.transform.position = new Vector3(lado * 6.5f, 0.11f, 75f);
             sideLine.transform.localScale = new Vector3(0.18f, 0.02f, 210f);
+            if (matLineaBlanca != null) sideLine.GetComponent<Renderer>().sharedMaterial = matLineaBlanca;
         }
 
         // 5. Charcos de agua reflectantes sobre el asfalto mojado

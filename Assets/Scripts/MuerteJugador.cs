@@ -249,9 +249,30 @@ public class MuerteJugador : MonoBehaviour
         // Comenzar a oscurecer la pantalla.
         yield return StartCoroutine(DesvanecerPantalla());
 
-        // Mostrar pantalla de derrota.
-        if (panelMuerte != null)
-            panelMuerte.SetActive(true);
+        // NIVEL 2: utilizar el sistema de Game Over.
+        if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "Level2")
+        {
+            if (LevelStateManager.Instance != null)
+            {
+                LevelStateManager.Instance.GameOver("Has caído en la oscuridad.");
+            }
+            else
+            {
+                Debug.LogError("[MuerteJugador] No se encontró LevelStateManager en Nivel 2.");
+            }
+        }
+        // NIVEL 3: utilizar su pantalla de muerte original.
+        else
+        {
+            if (panelMuerte != null)
+            {
+                panelMuerte.SetActive(true);
+            }
+            else
+            {
+                Debug.LogError("[MuerteJugador] No se ha asignado PanelMuerte en Nivel 3.");
+            }
+        }
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;

@@ -10,6 +10,24 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float gravity = -20f;
     [SerializeField] private float jumpHeight = 1.2f;
 
+    [Header("Sprint")]
+    [SerializeField] private float sprintSpeed = 8f;
+    [SerializeField] private float sprintDuration = 4f;
+    [SerializeField] private float sprintRegeneration = 5f;
+    [SerializeField] private float sprintRecoveryDelay = 5f;
+
+    private float recoveryTimer;
+    private bool sprintBloqueado;
+
+    private bool sprintInputHeld;
+    private bool sprinting;
+    private float sprintEnergy = 1f;
+
+    public float SprintEnergy => sprintEnergy;
+    public bool IsSprinting => sprinting;
+
+    public event Action<float> SprintEnergyChanged;
+
     [Header("Look")]
     [SerializeField] private Transform playerCamera;
     [SerializeField] private float mouseSensitivity = 0.2f;
@@ -74,13 +92,17 @@ public class PlayerController : MonoBehaviour
         {
             moveInput = Vector2.zero;
             lookInput = Vector2.zero;
+            sprinting = false;
 
+            ActualizarEnergiaSprint();
             AplicarGravedadSinMovimiento();
             return;
         }
 
         HandleMovement();
         HandleLook();
+
+        ActualizarEnergiaSprint();
     }
 
     // Movimiento
@@ -119,6 +141,12 @@ public class PlayerController : MonoBehaviour
             verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
             jumpsUsed++;
         }
+    }
+
+    // Sprint: Shift izquierdo o LS del control Xbox.
+    public void OnRun(InputValue value)
+    {
+        sprintInputHeld = value.isPressed;
     }
 
     // Acción de linterna: F o botón del control Xbox.
@@ -174,8 +202,13 @@ public class PlayerController : MonoBehaviour
             controller = GetComponent<CharacterController>();
             if (controller == null) return;
         }
-        if (CarEscapeController.Instance != null && CarEscapeController.Instance.JugadorEscondido) return;
 
+        if (CarEscapeController.Instance != null &&
+    CarEscapeController.Instance.JugadorEscondido)
+        {
+            sprinting = false;
+            return;
+        }
         if (controller.isGrounded && verticalVelocity < 0)
         {
             verticalVelocity = -2f;
@@ -221,10 +254,22 @@ public class PlayerController : MonoBehaviour
         }
 
         Vector3 movement =
-            transform.right * effectiveMove.x +
-            transform.forward * effectiveMove.y;
+    transform.right * effectiveMove.x +
+    transform.forward * effectiveMove.y;
 
-        movement *= speed;
+        // Comprobar si el jugador está intentando correr.
+        bool tieneMovimiento = effectiveMove.sqrMagnitude > 0.01f;
+
+        sprinting =
+    sprintInputHeld &&
+    tieneMovimiento &&
+    sprintEnergy > 0.001f &&
+    !sprintBloqueado;
+
+        // Aplicar la velocidad correspondiente.
+        float velocidadActual = sprinting ? sprintSpeed : speed;
+
+        movement *= velocidadActual;
 
         verticalVelocity += gravity * Time.deltaTime;
         movement.y = verticalVelocity;
@@ -304,5 +349,58 @@ public class PlayerController : MonoBehaviour
         }
 
         controller.Move(Vector3.up * verticalVelocity * Time.deltaTime);
+    }
+
+    private void ActualizarEnergiaSprint()
+    {
+        // Si estamos corriendo, consumir energía.
+        if (sprinting)
+        {
+            sprintEnergy -= Time.deltaTime / sprintDuration;
+
+            // Reiniciar el tiempo de recuperación.
+            recoveryTimer = 0f;
+
+            // Si se agota la energía, bloquear el sprint.
+            if (sprintEnergy <= 0f)
+            {
+                sprintEnergy = 0f;
+
+                sprinting = false;
+                sprintInputHeld = false;
+
+                sprintBloqueado = true;
+            }
+        }
+        else
+        {
+            // Si todavía no tenemos energía completa.
+            if (sprintEnergy < 1f)
+            {
+                recoveryTimer += Time.deltaTime;
+
+                // Esperar antes de comenzar la regeneración.
+                if (recoveryTimer >= sprintRecoveryDelay)
+                {
+                    sprintEnergy += Time.deltaTime / sprintRegeneration;
+                }
+            }
+            else
+            {
+                recoveryTimer = 0f;
+                sprintBloqueado = false;
+            }
+        }
+
+        sprintEnergy = Mathf.Clamp01(sprintEnergy);
+
+        // Actualizar la barra de energía.
+        SprintEnergyChanged?.Invoke(sprintEnergy);
+    }
+
+    private void OnDisable()
+    {
+        sprintInputHeld = false;
+        sprinting = false;
     }
 }

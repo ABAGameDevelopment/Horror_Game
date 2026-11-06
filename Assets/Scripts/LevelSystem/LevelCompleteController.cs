@@ -77,7 +77,7 @@ public class LevelCompleteController : MonoBehaviour
         RuntimeUI.Anclar(textDesbloqueo.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -435f), new Vector2(680f, 26f));
 
         // Botones de acción
-        botonSiguiente = RuntimeUI.CrearBotonHorror(panel.transform, "BotonSiguiente", "SIGUIENTE NIVEL", IrAlSiguiente);
+        botonSiguiente = RuntimeUI.CrearBotonHorror(panel.transform, "BotonSiguiente", "CONTINUAR", IrAlSiguiente);
         RuntimeUI.Anclar(botonSiguiente.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -480f), new Vector2(440f, 58f));
 
         Button botonMenu = RuntimeUI.CrearBotonHorror(panel.transform, "BotonMenu", "SALIR AL MENÚ PRINCIPAL", IrAlMenu);

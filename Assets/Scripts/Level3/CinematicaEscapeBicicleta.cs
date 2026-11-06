@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -8,7 +9,7 @@ public class CinematicaEscapeBicicleta : MonoBehaviour
 {
     [Header("Referencias de Cinemática")]
     [SerializeField] private Transform transformBicicleta;
-    [SerializeField] private float duracionCinematica = 5.5f;
+    [SerializeField] private float duracionCinematica = 5.8f;
 
     public void IniciarEscapeCinematico(Transform biciTransform)
     {
@@ -18,7 +19,35 @@ public class CinematicaEscapeBicicleta : MonoBehaviour
 
     private IEnumerator SecuenciaEscape()
     {
-        // 1. Desactivar controles de jugador y ocultar su cámara
+        // 1. Desactivar y neutralizar a cualquier monstruo para que NO ataque ni persiga al jugador durante el escape
+        MonstruoIA[] todosMonstruos = UnityEngine.Object.FindObjectsByType<MonstruoIA>(FindObjectsSortMode.None);
+        foreach (var m in todosMonstruos)
+        {
+            if (m != null)
+            {
+                m.enabled = false;
+                UnityEngine.AI.NavMeshAgent nav = m.GetComponent<UnityEngine.AI.NavMeshAgent>();
+                if (nav != null && nav.isOnNavMesh)
+                {
+                    nav.isStopped = true;
+                    nav.velocity = Vector3.zero;
+                }
+                AudioSource a = m.GetComponent<AudioSource>();
+                if (a != null) a.Stop();
+            }
+        }
+
+        // 2. Cancelar y bloquear cualquier secuencia de muerte o jumpscare
+        MuerteJugador[] muertes = UnityEngine.Object.FindObjectsByType<MuerteJugador>(FindObjectsSortMode.None);
+        foreach (var mj in muertes)
+        {
+            if (mj != null)
+            {
+                mj.CancelarYBloquearMuerte();
+            }
+        }
+
+        // 3. Montar al jugador en la bicicleta y ocultar su cápsula del suelo
         GameObject jugador = GameObject.FindWithTag("Player");
         if (jugador != null)
         {
@@ -30,20 +59,43 @@ public class CinematicaEscapeBicicleta : MonoBehaviour
 
             Camera playerCam = jugador.GetComponentInChildren<Camera>();
             if (playerCam != null) playerCam.enabled = false;
+
+            // Ocultar la cápsula, gafas y renderers del jugador para que no se quede parado en la carretera
+            Renderer[] playerRends = jugador.GetComponentsInChildren<Renderer>();
+            foreach (var r in playerRends) r.enabled = false;
+
+            Light[] playerLights = jugador.GetComponentsInChildren<Light>();
+            foreach (var l in playerLights) l.enabled = false;
+
+            Collider[] playerCols = jugador.GetComponentsInChildren<Collider>();
+            foreach (var col in playerCols) col.enabled = false;
+
+            // Emparentar el transform del jugador a la bicicleta para que viaje con ella
+            if (transformBicicleta != null)
+            {
+                jugador.transform.SetParent(transformBicicleta);
+                jugador.transform.localPosition = Vector3.zero;
+            }
         }
 
-        // 2. Crear Cámara Cinemática de Plano General (Frame 6)
+        // 4. Crear el modelo 3D del ciclista montado en la bicicleta
+        CrearCiclistaMontado(transformBicicleta);
+
+        // 5. Crear Cámara Cinemática de Plano General
         GameObject camGo = new GameObject("Camara_Cinematica_Escape");
         Camera cineCam = camGo.AddComponent<Camera>();
         cineCam.fieldOfView = 50f;
-        camGo.transform.position = new Vector3(3.5f, 2.8f, 137f);
-        camGo.transform.rotation = Quaternion.Euler(14f, 195f, 0f);
 
-        // 3. Audio de escape: timbre, cadena y lamento distante
+        Vector3 posInicialBici = transformBicicleta != null ? transformBicicleta.position : new Vector3(5.2f, 0f, 127f);
+        // Colocar cámara detrás y ligeramente al lado de la bicicleta
+        camGo.transform.position = posInicialBici + new Vector3(-1.8f, 2.4f, 7.5f);
+        camGo.transform.LookAt(posInicialBici + Vector3.up * 1f);
+
+        // 6. Audio de escape: timbre, cadena y lamento distante
         AudioSource audioSource = camGo.AddComponent<AudioSource>();
         audioSource.PlayOneShot(GenerarAudioPedaleo(), 0.95f);
 
-        // 4. Canvas cinematográfico con mensaje dramático
+        // 7. Canvas cinematográfico con mensaje dramático
         Canvas canvas = RuntimeUI.CrearCanvas("Canvas_EscapeFinal", 50);
         Image fadeFondo = RuntimeUI.CrearPanel(canvas.transform, "FadeFondo", new Color(0f, 0f, 0f, 0f));
         RuntimeUI.Estirar(fadeFondo.rectTransform, 0f, 0f, 0f, 0f);
@@ -57,26 +109,56 @@ public class CinematicaEscapeBicicleta : MonoBehaviour
         );
         RuntimeUI.Anclar(textoEscape.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Vector2(900f, 120f));
 
-        // 5. Animación: La cámara se aleja lentamente mientras la bicicleta se interna en la niebla
+        // 8. Buscar ruedas de la bicicleta para hacerlas girar
+        List<Transform> ruedas = new List<Transform>();
+        if (transformBicicleta != null)
+        {
+            Transform[] allParts = transformBicicleta.GetComponentsInChildren<Transform>();
+            foreach (var p in allParts)
+            {
+                if (p != null && (p.name.ToLower().Contains("wheel") || p.name.ToLower().Contains("rueda")))
+                {
+                    ruedas.Add(p);
+                }
+            }
+        }
+
+        // 9. Animación: La bicicleta avanza por la carretera rumbo a la universidad y la cámara la sigue
         float tiempo = 0f;
-        Vector3 posInicialBici = transformBicicleta != null ? transformBicicleta.position : new Vector3(4.8f, 0f, 130f);
+        Vector3 dirEscape = transformBicicleta != null ? transformBicicleta.forward : new Vector3(0f, 0f, -1f);
+        dirEscape.y = 0f;
+        if (dirEscape.sqrMagnitude < 0.01f) dirEscape = new Vector3(0f, 0f, -1f);
+        dirEscape.Normalize();
+
         Vector3 posCamInicial = camGo.transform.position;
-        Vector3 posCamFinal = posCamInicial + new Vector3(-3f, 4f, 18f); // Alejamiento progresivo de cámara
+        Vector3 posCamFinal = posCamInicial + new Vector3(-2.5f, 3.5f, 18f); // Elevación y alejamiento progresivo
+        Vector3 posFinalBici = posInicialBici + dirEscape * 60f;
 
         while (tiempo < duracionCinematica)
         {
             tiempo += Time.deltaTime;
-            float t = tiempo / duracionCinematica;
+            float t = Mathf.Clamp01(tiempo / duracionCinematica);
+            // Curva suave de aceleración inicial
+            float easeT = t * t * (3f - 2f * t);
 
-            // Movimiento de la bicicleta alejándose hacia el inicio de la carretera (rumbo a la universidad)
+            // Movimiento de la bicicleta alejándose hacia el inicio de la carretera
             if (transformBicicleta != null)
             {
-                transformBicicleta.position = Vector3.Lerp(posInicialBici, posInicialBici + new Vector3(0f, 0f, -45f), t);
+                transformBicicleta.position = Vector3.Lerp(posInicialBici, posFinalBici, easeT);
+
+                // Girar ruedas
+                foreach (var r in ruedas)
+                {
+                    if (r != null) r.Rotate(Vector3.right * 720f * Time.deltaTime, Space.Self);
+                }
             }
 
-            // Cámara alejándose (Plano general)
-            camGo.transform.position = Vector3.Lerp(posCamInicial, posCamFinal, t * 0.65f);
-            camGo.transform.LookAt(transformBicicleta != null ? transformBicicleta.position : Vector3.zero);
+            // Cámara cinematográfica siguiendo el trayecto
+            camGo.transform.position = Vector3.Lerp(posCamInicial, posCamFinal, t * 0.7f);
+            if (transformBicicleta != null)
+            {
+                camGo.transform.LookAt(transformBicicleta.position + Vector3.up * 1f);
+            }
 
             // Fade in de texto y pantalla negra progresiva
             if (t > 0.45f)
@@ -91,7 +173,7 @@ public class CinematicaEscapeBicicleta : MonoBehaviour
 
         yield return new WaitForSeconds(1.2f);
 
-        // 6. Completar nivel en el gestor
+        // 10. Completar nivel en el gestor
         if (LevelStateManager.Instance != null)
         {
             LevelStateManager.Instance.CompletarNivel();
@@ -99,6 +181,85 @@ public class CinematicaEscapeBicicleta : MonoBehaviour
         else
         {
             SceneManager.LoadScene("Level1");
+        }
+    }
+
+    private void CrearCiclistaMontado(Transform bici)
+    {
+        if (bici == null) return;
+
+        // Si ya existe un ciclista montado previo, no duplicar
+        if (bici.Find("Ciclista_Escape") != null) return;
+
+        GameObject ciclista = new GameObject("Ciclista_Escape");
+        ciclista.transform.SetParent(bici, false);
+        ciclista.transform.localPosition = Vector3.zero;
+        ciclista.transform.localRotation = Quaternion.identity;
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        if (shader == null) shader = Shader.Find("Standard");
+
+        Material matRopa = new Material(shader);
+        matRopa.color = new Color(0.12f, 0.15f, 0.20f); // Chaqueta azul oscura
+
+        Material matPantalon = new Material(shader);
+        matPantalon.color = new Color(0.08f, 0.08f, 0.09f); // Pantalón oscuro
+
+        Material matPiel = new Material(shader);
+        matPiel.color = new Color(0.82f, 0.68f, 0.55f); // Tono de piel
+
+        // 1. Torso inclinado hacia el manubrio
+        GameObject torso = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        torso.name = "Torso";
+        torso.transform.SetParent(ciclista.transform, false);
+        torso.transform.localPosition = new Vector3(0f, 0.95f, -0.05f);
+        torso.transform.localRotation = Quaternion.Euler(22f, 0f, 0f);
+        torso.transform.localScale = new Vector3(0.36f, 0.48f, 0.24f);
+        Destroy(torso.GetComponent<Collider>());
+        torso.GetComponent<MeshRenderer>().material = matRopa;
+
+        // 2. Cabeza
+        GameObject cabeza = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        cabeza.name = "Cabeza";
+        cabeza.transform.SetParent(ciclista.transform, false);
+        cabeza.transform.localPosition = new Vector3(0f, 1.28f, 0.10f);
+        cabeza.transform.localScale = new Vector3(0.24f, 0.25f, 0.24f);
+        Destroy(cabeza.GetComponent<Collider>());
+        cabeza.GetComponent<MeshRenderer>().material = matPiel;
+
+        // 3. Gorro / Cabello
+        GameObject pelo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        pelo.name = "Gorro";
+        pelo.transform.SetParent(cabeza.transform, false);
+        pelo.transform.localPosition = new Vector3(0f, 0.08f, -0.04f);
+        pelo.transform.localScale = new Vector3(1.05f, 0.95f, 1.05f);
+        Destroy(pelo.GetComponent<Collider>());
+        pelo.GetComponent<MeshRenderer>().material = matPantalon;
+
+        // 4. Brazos hacia el manubrio
+        for (int i = -1; i <= 1; i += 2)
+        {
+            GameObject brazo = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            brazo.name = i == -1 ? "Brazo_Izq" : "Brazo_Der";
+            brazo.transform.SetParent(ciclista.transform, false);
+            brazo.transform.localPosition = new Vector3(i * 0.20f, 0.88f, 0.22f);
+            brazo.transform.localRotation = Quaternion.Euler(60f, i * 15f, 0f);
+            brazo.transform.localScale = new Vector3(0.08f, 0.22f, 0.08f);
+            Destroy(brazo.GetComponent<Collider>());
+            brazo.GetComponent<MeshRenderer>().material = matRopa;
+        }
+
+        // 5. Piernas hacia los pedales
+        for (int i = -1; i <= 1; i += 2)
+        {
+            GameObject pierna = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            pierna.name = i == -1 ? "Pierna_Izq" : "Pierna_Der";
+            pierna.transform.SetParent(ciclista.transform, false);
+            pierna.transform.localPosition = new Vector3(i * 0.16f, 0.55f, 0.05f);
+            pierna.transform.localRotation = Quaternion.Euler(28f, 0f, 0f);
+            pierna.transform.localScale = new Vector3(0.10f, 0.28f, 0.10f);
+            Destroy(pierna.GetComponent<Collider>());
+            pierna.GetComponent<MeshRenderer>().material = matPantalon;
         }
     }
 

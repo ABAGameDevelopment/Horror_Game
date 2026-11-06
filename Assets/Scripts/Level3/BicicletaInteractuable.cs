@@ -124,6 +124,9 @@ public class BicicletaInteractuable : MonoBehaviour
     {
         if (Level3Controller.Instance == null) return;
 
+        MuerteJugador mj = UnityEngine.Object.FindAnyObjectByType<MuerteJugador>();
+        if (mj != null && !mj.enabled) return;
+
         if (!Level3Controller.Instance.PuedeUsarBicicleta())
         {
             Level3Controller.Instance.MostrarMensaje("No puedes huir todavía. Debes encontrar primero el expediente del origen en la caseta de transbordo.");

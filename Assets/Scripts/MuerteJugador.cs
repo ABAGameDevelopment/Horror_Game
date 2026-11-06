@@ -164,6 +164,23 @@ public class MuerteJugador : MonoBehaviour
             audioMusicaScreamer = audioScreamer;
     }
 
+    public void CancelarYBloquearMuerte()
+    {
+        muerteIniciada = true;
+        StopAllCoroutines();
+        if (audioScreamer != null) audioScreamer.Stop();
+        if (audioMusicaScreamer != null) audioMusicaScreamer.Stop();
+        if (panelMuerte != null) panelMuerte.SetActive(false);
+        if (panelOscuro != null)
+        {
+            Color col = panelOscuro.color;
+            col.a = 0f;
+            panelOscuro.color = col;
+            panelOscuro.gameObject.SetActive(false);
+        }
+        enabled = false;
+    }
+
     public void IniciarMuerte(Transform monstruo)
 
     {

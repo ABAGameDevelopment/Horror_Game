@@ -516,17 +516,22 @@ public static class Level3Bootstrap
 
         return mj;
     }
+
     private static void AsegurarSueloYLimites()
     {
         // 1. Quitar los triangulos del terreno nativo
         Terrain[] terrenos = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None);
-        Material matSuelo = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(m => m.name == "Mat_AsfaltoEstacionamiento" || m.name == "Ground");
+        Material matSuelo = Resources.FindObjectsOfTypeAll<Material>()
+            .FirstOrDefault(m => m.name == "Mat_AsfaltoEstacionamiento" || m.name == "Ground");
 
         foreach (var t in terrenos)
         {
             if (t == null) continue;
-            if (matSuelo != null) t.materialTemplate = matSuelo;
-            t.drawHeightmap = false; // Desactivar la malla wireframe sin textura del terreno nativo
+
+            if (matSuelo != null)
+                t.materialTemplate = matSuelo;
+
+            t.drawHeightmap = false;
         }
 
         // 2. Asegurar plano de suelo oscuro para el bosque y la carretera
@@ -536,25 +541,12 @@ public static class Level3Bootstrap
             suelo.name = "Suelo_Bosque_Carretera";
             suelo.transform.position = new Vector3(0f, -0.2f, 75f);
             suelo.transform.localScale = new Vector3(220f, 0.2f, 320f);
-            if (matSuelo != null) suelo.GetComponent<Renderer>().sharedMaterial = matSuelo;
+
+            if (matSuelo != null)
+                suelo.GetComponent<Renderer>().sharedMaterial = matSuelo;
         }
 
-        // 3. Limite de fin de carretera (para que el jugador no caiga al vacio)
-        if (GameObject.Find("Limite_Fin_Carretera") == null)
-        {
-            GameObject limFin = new GameObject("Limite_Fin_Carretera");
-            limFin.transform.position = new Vector3(0f, 2f, 168f);
-            BoxCollider colFin = limFin.AddComponent<BoxCollider>();
-            colFin.size = new Vector3(30f, 10f, 2f);
-        }
-
-        // 4. Limite de inicio de carretera
-        if (GameObject.Find("Limite_Inicio_Carretera") == null)
-        {
-            GameObject limIni = new GameObject("Limite_Inicio_Carretera");
-            limIni.transform.position = new Vector3(0f, 2f, -24f);
-            BoxCollider colIni = limIni.AddComponent<BoxCollider>();
-            colIni.size = new Vector3(30f, 10f, 2f);
-        }
+        // Ya no se generan los limites de inicio y fin de carretera.
     }
+
 }

@@ -34004,7 +34004,7 @@ MonoBehaviour:
   anguloApertura: 90
   velocidadApertura: 2
   retrasoApertura: 0.3
-  tipoPuerta: 0
+  tipoPuerta: 1
 --- !u!65 &657665245
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -40781,7 +40781,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &793170389
 Transform:
   m_ObjectHideFlags: 0
@@ -65403,7 +65403,7 @@ MonoBehaviour:
   anguloApertura: 90
   velocidadApertura: 2
   retrasoApertura: 0.3
-  tipoPuerta: 0
+  tipoPuerta: 1
 --- !u!65 &1263480396
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -67517,7 +67517,7 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
@@ -69984,7 +69984,7 @@ MonoBehaviour:
   anguloApertura: 90
   velocidadApertura: 2
   retrasoApertura: 0.3
-  tipoPuerta: 0
+  tipoPuerta: 1
 --- !u!65 &1355699612
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -70129,7 +70129,7 @@ MonoBehaviour:
   anguloApertura: 90
   velocidadApertura: 2
   retrasoApertura: 0.3
-  tipoPuerta: 0
+  tipoPuerta: 1
 --- !u!65 &1358425753
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -110879,7 +110879,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!33 &3430031034324814228
 MeshFilter:
   m_ObjectHideFlags: 0

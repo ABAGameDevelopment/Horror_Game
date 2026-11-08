@@ -13,8 +13,34 @@ public class CarBreakdownSequence : MonoBehaviour
     private float temporizador = 0f;
     private bool lucesEncendidas = true;
 
+    private void Awake()
+    {
+        EliminarResiduosCofre();
+    }
+
+    public void EliminarResiduosCofre()
+    {
+        Transform hood = transform.parent != null ? transform.parent.Find("Cofre_Abierto_Vapor") : null;
+        if (hood == null)
+        {
+            GameObject hGo = GameObject.Find("Cofre_Abierto_Vapor");
+            if (hGo != null) hood = hGo.transform;
+        }
+        if (hood != null) Destroy(hood.gameObject);
+
+        foreach (var obj in Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (obj != null && (obj.name.Contains("Cofre_Abierto_Vapor") || obj.name.Contains("CarEngineBay") || obj.name.Contains("CarHood")))
+            {
+                Destroy(obj);
+            }
+        }
+    }
+
     private void Start()
     {
+        EliminarResiduosCofre();
+
         // Generar sonido siseo de radiador si no hay clip
         if (audioSourceHiss == null)
         {

@@ -25,6 +25,13 @@ public class CarEscapeController : MonoBehaviour
     [SerializeField] private Transform portonSalida;
     [SerializeField] private float velocidadEscape = 22f;
 
+    [Header("Camara Cinematica de Escape")]
+    [SerializeField] private Camera camaraEscape;
+    [SerializeField] private Vector3 offsetCamaraEscape = new Vector3(0f, 14f, -9f);
+    [SerializeField] private float suavizadoCamaraEscape = 3f;
+
+    private Camera camaraJugador;
+
     [Header("Sonidos de Auto Realistas")]
     [SerializeField] private AudioClip sfxAbrirCofre;
     [SerializeField] private AudioClip sfxCerrarCofre;
@@ -76,6 +83,12 @@ public class CarEscapeController : MonoBehaviour
         Instance = this;
     }
 
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
+    }
+
     public void ConfigurarAudios(AudioClip abrirCofre, AudioClip cerrarCofre, AudioClip abrirPuerta, AudioClip cerrarPuerta, AudioClip arranqueMotor)
     {
         sfxAbrirCofre = abrirCofre;
@@ -112,6 +125,18 @@ public class CarEscapeController : MonoBehaviour
         GameObject player = GameObject.FindWithTag("Player");
         if (player == null) player = GameObject.Find("Player");
         if (player != null) playerTransform = player.transform;
+
+        // Obtener la cámara de primera persona del jugador.
+        if (playerTransform != null)
+        {
+            camaraJugador = playerTransform.GetComponentInChildren<Camera>(true);
+        }
+
+        // Mantener desactivada la cámara cinematográfica al comenzar.
+        if (camaraEscape != null)
+        {
+            camaraEscape.enabled = false;
+        }
 
         if (portonSalida == null)
         {
@@ -774,12 +799,43 @@ public class CarEscapeController : MonoBehaviour
         MostrarMensajeFlotante("Subiendo al vehículo...", 2f);
         yield return new WaitForSeconds(0.4f);
 
-        // 2. Cerrar puerta con golpe sólido
+        // 2. Cerrar puerta con golpe sólido.
         ReproducirSonidoProcedural(TipoSonido.CierrePuerta);
+
+        // Desactivar la cámara de primera persona.
+        if (camaraJugador != null)
+        {
+            camaraJugador.enabled = false;
+        }
+
+        // Activar la cámara cinematográfica.
+        if (camaraEscape != null)
+        {
+            camaraEscape.gameObject.SetActive(true);
+
+            // Colocar la cámara inicialmente sobre el automóvil.
+            camaraEscape.transform.position =
+                transform.TransformPoint(offsetCamaraEscape);
+
+            camaraEscape.transform.LookAt(
+                transform.position + Vector3.up
+            );
+
+            camaraEscape.enabled = true;
+        }
+        else
+        {
+            Debug.LogError(
+                "No se ha asignado CamaraEscape en CarEscapeController."
+            );
+        }
+
+        // Ocultar al jugador porque ya está dentro del automóvil.
         if (playerTransform != null)
         {
             playerTransform.gameObject.SetActive(false);
         }
+
         yield return new WaitForSeconds(0.35f);
 
         // 3. Encender el motor: Marcha de arranque y rugido V8
@@ -949,4 +1005,30 @@ public class CarEscapeController : MonoBehaviour
         return clip;
     }
     #endregion
+
+    private void LateUpdate()
+    {
+        if (!escapeIniciado || camaraEscape == null)
+            return;
+
+        // Posición deseada por encima y detrás del automóvil.
+        Vector3 posicionDeseada =
+            transform.TransformPoint(offsetCamaraEscape);
+
+        // Movimiento suave de la cámara.
+        float suavizado = 1f -
+            Mathf.Exp(-suavizadoCamaraEscape * Time.deltaTime);
+
+        camaraEscape.transform.position =
+            Vector3.Lerp(
+                camaraEscape.transform.position,
+                posicionDeseada,
+                suavizado
+            );
+
+        // Mantener la mirada enfocada en el automóvil.
+        camaraEscape.transform.LookAt(
+            transform.position + Vector3.up
+        );
+    }
 }

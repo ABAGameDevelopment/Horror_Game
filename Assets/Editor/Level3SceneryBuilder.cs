@@ -63,53 +63,11 @@ public static class Level3SceneryBuilder
         if (activeScene.path == ScenePath || activeScene.path == SceneAltPath)
         {
             CleanLegacyUI();
-            PurgeLevel2Residues();
 
-            GameObject root = EncontrarRaizNivel3();
+            GameObject root = GameObject.Find("Escenografia_LaCalle_Nivel3");
             if (root == null || !root.name.Contains(SceneryVersionName))
             {
                 ConstruirEscenografiaCarretera();
-            }
-        }
-    }
-
-    private static GameObject EncontrarRaizNivel3()
-    {
-        foreach (var obj in Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-        {
-            if (obj != null && obj.name.StartsWith("Escenografia_LaCalle_Nivel3"))
-                return obj;
-        }
-        return null;
-    }
-
-    [MenuItem("Tools/Nivel 3/Purgar Residuos Nivel 2")]
-    public static void PurgeLevel2Residues()
-    {
-        foreach (var obj in Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-        {
-            if (obj == null) continue;
-
-            if (obj.name.StartsWith("Escenografia_Estacionamiento") ||
-                obj.name.StartsWith("Sistemas_Nivel2") ||
-                obj.name.StartsWith("Canvas_TituloIntroNivel2") ||
-                obj.name.StartsWith("HUD_Nivel2") ||
-                obj.name.StartsWith("Canvas_Nivel2"))
-            {
-                Undo.DestroyObjectImmediate(obj);
-                continue;
-            }
-
-            if (obj.GetComponent<CarEscapeController>() != null)
-            {
-                Undo.DestroyObjectImmediate(obj);
-                continue;
-            }
-
-            if (obj.GetComponent<Level2ItemPickup>() != null)
-            {
-                Undo.DestroyObjectImmediate(obj);
-                continue;
             }
         }
     }
@@ -135,7 +93,6 @@ public static class Level3SceneryBuilder
 
         CleanLegacyUI();
         HideOldInterior();
-        PurgeLevel2Residues();
 
         // Destruir escenografías previas
         foreach (var obj in Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None))
@@ -146,8 +103,8 @@ public static class Level3SceneryBuilder
             }
         }
 
-        // Purgar cualquier residuo de escenografía de estacionamiento
-        PurgeLevel2Residues();
+        GameObject prevLevel2 = GameObject.Find("Escenografia_Estacionamiento");
+        if (prevLevel2 != null) prevLevel2.SetActive(false);
 
         // Crear raíz
         GameObject root = new GameObject("Escenografia_LaCalle_Nivel3_" + SceneryVersionName);
@@ -208,17 +165,13 @@ public static class Level3SceneryBuilder
         string[] uiNames = {
             "CanvasObjetivos", "GestorObjetivos", "IntroLevel",
             "PanelNuevoObjetivo", "TextoObjetivo", "PanelObjetivosHUD",
-            "PanelTutorialLinterna", "TextoTutorialLinterna", "Canvas_Nivel2", "HUD_Nivel2",
-            "Canvas_TituloIntroNivel2", "Sistemas_Nivel2"
+            "PanelTutorialLinterna", "TextoTutorialLinterna", "Canvas_Nivel2", "HUD_Nivel2"
         };
 
         foreach (string n in uiNames)
         {
             GameObject go = GameObject.Find(n);
-            if (go != null)
-            {
-                Undo.DestroyObjectImmediate(go);
-            }
+            if (go != null) go.SetActive(false);
         }
     }
 

@@ -69,12 +69,4 @@ public class PasosJugador : MonoBehaviour
             audioPasos.Play();
         }
     }
-
-    public void DetenerPasos()
-    {
-        if (audioPasos != null)
-            audioPasos.Stop();
-
-        enabled = false;
-    }
 }

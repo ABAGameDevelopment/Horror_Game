@@ -19,8 +19,6 @@ public class PlayerController : MonoBehaviour
     [Header("Linterna")]
     [SerializeField] private Light luzLinterna;
     [SerializeField] private bool linternaEncendida = true;
-    [SerializeField] private AudioSource audioLinterna;
-    [SerializeField] private AudioClip sonidoLinterna;
 
     [Header("Intro")]
     [SerializeField] private IntroNivel introNivel;
@@ -64,8 +62,6 @@ public class PlayerController : MonoBehaviour
         {
             moveInput = Vector2.zero;
             lookInput = Vector2.zero;
-
-            AplicarGravedadSinMovimiento();
             return;
         }
 
@@ -131,9 +127,6 @@ public class PlayerController : MonoBehaviour
 
         linternaEncendida = !linternaEncendida;
         luzLinterna.enabled = linternaEncendida;
-
-        if (audioLinterna != null && sonidoLinterna != null)
-            audioLinterna.PlayOneShot(sonidoLinterna);
 
         Debug.Log(linternaEncendida
             ? "Linterna encendida."
@@ -273,22 +266,5 @@ public class PlayerController : MonoBehaviour
             playerCamera.localRotation =
                 Quaternion.Euler(cameraPitch, 0f, 0f);
         }
-    }
-
-    private void AplicarGravedadSinMovimiento()
-    {
-        if (controller == null) return;
-
-        if (controller.isGrounded && verticalVelocity < 0)
-        {
-            verticalVelocity = -2f;
-            jumpsUsed = 0;
-        }
-        else
-        {
-            verticalVelocity += gravity * Time.deltaTime;
-        }
-
-        controller.Move(Vector3.up * verticalVelocity * Time.deltaTime);
     }
 }

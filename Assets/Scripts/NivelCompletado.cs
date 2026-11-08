@@ -40,12 +40,13 @@ public class NivelCompletado : MonoBehaviour
             return;
 
         finalIniciado = true;
+        Time.timeScale = 0f;
         StartCoroutine(TransicionFinal());
     }
 
     private IEnumerator TransicionFinal()
     {
-        yield return new WaitForSeconds(retrasoAntesDeOscurecer);
+        yield return new WaitForSecondsRealtime(retrasoAntesDeOscurecer);
 
         if (panelOscuro == null)
         {
@@ -64,7 +65,7 @@ public class NivelCompletado : MonoBehaviour
 
         while (tiempo < duracionDesvanecimiento)
         {
-            tiempo += Time.deltaTime;
+            tiempo += Time.unscaledDeltaTime;
 
             float progreso = Mathf.Clamp01(tiempo / duracionDesvanecimiento);
 

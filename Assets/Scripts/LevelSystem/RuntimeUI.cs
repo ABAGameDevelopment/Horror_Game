@@ -25,6 +25,7 @@ public static class RuntimeUI
     private static TMP_FontAsset fuenteTexto;
     private static TMP_FontAsset fuenteTitulo;
 
+    public static TMP_FontAsset FuenteCuerpo => FuenteTexto;
     public static TMP_FontAsset FuenteTexto
     {
         get

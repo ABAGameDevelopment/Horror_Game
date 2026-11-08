@@ -38,13 +38,6 @@ public class LevelStateManager : MonoBehaviour
     public bool NuevoRecord { get; private set; }
     public string MotivoGameOver { get; private set; } = string.Empty;
 
-    public void Configurar(string nombre, string siguiente, int indiceSiguiente)
-    {
-        nombreNivel = nombre;
-        siguienteEscena = siguiente;
-        indiceSiguienteNivel = indiceSiguiente;
-    }
-
     private void Awake()
     {
         if (Instance != null && Instance != this)

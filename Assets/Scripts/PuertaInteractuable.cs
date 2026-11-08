@@ -7,10 +7,6 @@ public class PuertaInteractuable : MonoBehaviour
     [Header("Referencias")]
     [SerializeField] private InteraccionJugador jugador;
 
-    [Header("Final del nivel")]
-    [SerializeField] private bool esSalidaCampus;
-    [SerializeField] private ObjetivoUI objetivoUI;
-
     [Header("Sonido de apertura")]
     [SerializeField] private AudioSource audioApertura;
     [SerializeField] private AudioClip sonidoApertura;
@@ -91,11 +87,5 @@ public class PuertaInteractuable : MonoBehaviour
 
         transform.localRotation = rotacionAbierta;
         abriendo = false;
-
-        // Comprobar si esta es la puerta final del campus.
-        if (esSalidaCampus && objetivoUI != null)
-        {
-            objetivoUI.CompletarObjetivoFinal();
-        }
     }
 }

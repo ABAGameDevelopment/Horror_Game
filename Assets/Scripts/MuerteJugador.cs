@@ -12,13 +12,10 @@ public class MuerteJugador : MonoBehaviour
     [SerializeField] private PlayerInput playerInput;
     [SerializeField] private CharacterController characterController;
     [SerializeField] private Transform camaraJugador;
-    [SerializeField] private PasosJugador pasosJugador;
 
     [Header("Screamer")]
     [SerializeField] private AudioSource audioScreamer;
     [SerializeField] private AudioClip sonidoScreamer;
-    [SerializeField] private AudioSource audioMusicaScreamer;
-    [SerializeField] private AudioClip musicaScreamer;
     [SerializeField] private float duracionScreamer = 2.5f;
 
     [SerializeField]
@@ -79,10 +76,6 @@ public class MuerteJugador : MonoBehaviour
         rotacionOriginalMonstruo = monstruo.rotation;
         escalaOriginalMonstruo = monstruo.localScale;
 
-        // Detener los sonidos de los pasos.
-        if (pasosJugador != null)
-            pasosJugador.DetenerPasos();
-
         // Bloquear los controles del jugador.
         if (playerInput != null)
             playerInput.enabled = false;
@@ -106,9 +99,8 @@ public class MuerteJugador : MonoBehaviour
         monstruo.localRotation = Quaternion.Euler(0f, 180f, 0f);
 
         // Reproducir el sonido.
-        if (audioScreamer != null && sonidoScreamer != null && audioMusicaScreamer != null && musicaScreamer != null)
+        if (audioScreamer != null && sonidoScreamer != null)
             audioScreamer.PlayOneShot(sonidoScreamer);
-            audioMusicaScreamer.PlayOneShot(musicaScreamer);
 
         // Animación del ataque.
         float tiempo = 0f;

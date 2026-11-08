@@ -28,8 +28,6 @@ public class NotasUI : MonoBehaviour
             return;
         }
 
-        Time.timeScale = 0;
-
         // Colocar la imagen correspondiente.
         imagenNota.sprite = imagen;
 
@@ -42,18 +40,19 @@ public class NotasUI : MonoBehaviour
         // Mostrar la interfaz.
         panelNota.SetActive(true);
         MostrandoNota = true;
+
+        // Desbloquear el cursor si es necesario no se requiere
+        // para una interfaz que se controla con E/X.
     }
 
     private void ActualizarTextoContinuar()
     {
-        // Elegir el texto segun el control utilizado.
-        bool usaGamepad =
-            Gamepad.current != null &&
-            (Keyboard.current == null ||
-             Gamepad.current.lastUpdateTime >
-             Keyboard.current.lastUpdateTime);
+        bool esXbox = playerInput != null &&
+            !string.IsNullOrEmpty(playerInput.currentControlScheme) &&
+            (playerInput.currentControlScheme.ToLower().Contains("gamepad") ||
+             playerInput.currentControlScheme.ToLower().Contains("xbox"));
 
-        string boton = usaGamepad ? "X" : "E";
+        string boton = esXbox ? "X" : "E";
 
         textoContinuar.text =
             $"Presiona {boton} para continuar";
@@ -63,6 +62,5 @@ public class NotasUI : MonoBehaviour
     {
         panelNota.SetActive(false);
         MostrandoNota = false;
-        Time.timeScale = 1;
     }
 }

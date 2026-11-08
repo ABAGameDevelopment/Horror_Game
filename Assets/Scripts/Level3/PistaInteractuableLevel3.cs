@@ -1,14 +1,15 @@
+#pragma warning disable 0414
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class PistaInteractuableLevel3 : MonoBehaviour
 {
-    [Header("Configuración de la Pista")]
-    [SerializeField] private string nombrePista = "Fotografía de la Universidad";
-    [SerializeField] [TextArea(2, 5)] private string descripcionPista = "Una fotografía aérea del campus donde se aprecian anomalías en el laboratorio subterráneo.";
+    [Header("Configuracion de la Pista")]
+    [SerializeField] private string nombrePista = "Fotografia de la Universidad";
+    [SerializeField] [TextArea(2, 5)] private string descripcionPista = "Una fotografia aerea del campus donde se aprecian anomalias en el laboratorio subterraneo.";
     [SerializeField] private bool esExpedientePrincipal = false;
     [SerializeField] private Sprite imagenNota;
-    [SerializeField] private float distanciaInteraccion = 2.8f;
+    [SerializeField] private float distanciaInteraccion = 3.2f;
 
     [Header("Efectos Visuales")]
     [SerializeField] private GameObject efectoBrillo;
@@ -21,7 +22,7 @@ public class PistaInteractuableLevel3 : MonoBehaviour
 
     private void Start()
     {
-        notasUI = UnityEngine.Object.FindAnyObjectByType<NotasUI>();
+        notasUI = NotasUI.Instance != null ? NotasUI.Instance : UnityEngine.Object.FindAnyObjectByType<NotasUI>();
         BuscarJugador();
     }
 
@@ -64,7 +65,6 @@ public class PistaInteractuableLevel3 : MonoBehaviour
                 }
             }
 
-            // Input System o tecla E
             bool presionoInteraccion = false;
             if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame)
                 presionoInteraccion = true;
@@ -101,7 +101,7 @@ public class PistaInteractuableLevel3 : MonoBehaviour
         if (efectoBrillo != null)
             efectoBrillo.SetActive(false);
 
-        // Desactivar colisión y renderers del objeto en el suelo
+        // Desactivar colision y mallas en el suelo
         Collider col = GetComponent<Collider>();
         if (col != null) col.enabled = false;
 
@@ -109,32 +109,19 @@ public class PistaInteractuableLevel3 : MonoBehaviour
         foreach (var r in renderers)
             r.enabled = false;
 
-        // Abrir Lector Inmersivo de Documentos
-        if (LectorDocumentoUI.Instance != null)
+        // Mostrar la imagen de la nota en pantalla exactamente como en el Nivel 1
+        NotasUI nUI = NotasUI.Instance != null ? NotasUI.Instance : UnityEngine.Object.FindAnyObjectByType<NotasUI>();
+        if (nUI == null)
         {
-            string sello = esExpedientePrincipal
-                ? "— EXPEDIENTE CLASIFICADO // NIVEL DE ACCESO ULTRA —"
-                : "— EVIDENCIA FOTOGRÁFICA // DIVISIÓN DE SEGURIDAD —";
-
-            LectorDocumentoUI.Instance.MostrarDocumento(
-                nombrePista,
-                descripcionPista,
-                imagenNota,
-                sello,
-                alCerrar: () =>
-                {
-                    if (Level3Controller.Instance != null)
-                    {
-                        Level3Controller.Instance.MostrarMensaje($"Pista registrada en tu bitácora: {nombrePista}", 4.5f);
-                    }
-                }
-            );
-        }
-        else if (notasUI != null && imagenNota != null)
-        {
-            notasUI.MostrarNota(imagenNota);
+            GameObject nGo = new GameObject("NotasUI_Auto");
+            nUI = nGo.AddComponent<NotasUI>();
         }
 
-        Destroy(gameObject, 1f);
+        if (nUI != null)
+        {
+            nUI.MostrarNota(imagenNota);
+        }
+
+        Destroy(gameObject, 5f);
     }
 }

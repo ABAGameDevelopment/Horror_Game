@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 
 using UnityEngine;
 using UnityEngine.AI;
@@ -23,6 +24,8 @@ public class MonstruoIA : MonoBehaviour
     [SerializeField] private float velocidadPersecucion = 4.5f;
 
     [Header("Deteccion")]
+    [SerializeField] private AudioSource audioEnemy;
+    [SerializeField] private AudioClip walkEnemy;
     [SerializeField] private float distanciaVision = 9f;
     [SerializeField, Range(0f, 180f)]
     private float anguloVision = 100f;
@@ -30,6 +33,7 @@ public class MonstruoIA : MonoBehaviour
     [SerializeField] private LayerMask obstaculos;
 
     [Header("Persecucion")]
+    [SerializeField] private AudioClip runEnemy;
     [SerializeField] private float distanciaPerdida = 18f;
     [SerializeField] private float tiempoBusqueda = 5f;
 
@@ -53,16 +57,38 @@ public class MonstruoIA : MonoBehaviour
 
     private void Start()
     {
-        if (agente == null || jugador == null ||
-            puntosPatrullaje == null || puntosPatrullaje.Length == 0)
+        if (agente == null)
+            agente = GetComponent<NavMeshAgent>();
+
+        if (jugador == null)
         {
-            Debug.LogError(
-                "Faltan referencias en MonstruoIA.", this);
+            GameObject p = GameObject.FindWithTag("Player");
+            if (p != null) jugador = p.transform;
+            else
+            {
+                PlayerController pc = Object.FindAnyObjectByType<PlayerController>();
+                if (pc != null) jugador = pc.transform;
+            }
+        }
+
+        if (agente == null || jugador == null)
+        {
+            Debug.LogError("Faltan referencias críticas en MonstruoIA (agente o jugador).", this);
             enabled = false;
             return;
         }
 
+        // Asegurar que el monstruo esté colocado exactamente sobre el NavMesh
+        if (!agente.isOnNavMesh)
+        {
+            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 12f, NavMesh.AllAreas))
+            {
+                agente.Warp(hit.position);
+            }
+        }
+
         agente.speed = velocidadPatrulla;
+        agente.isStopped = false;
         caminoTemporal = new NavMeshPath();
         ElegirDestinoPatrulla();
     }
@@ -86,10 +112,15 @@ public class MonstruoIA : MonoBehaviour
             case Estado.Capturando:
                 break;
         }
+
+        ActualizarAudioMovimiento();
     }
 
     private void Merodear()
     {
+        if (agente == null || !agente.isOnNavMesh)
+            return;
+
         if (Time.time < siguienteIntentoPatrulla)
             return;
 
@@ -97,14 +128,10 @@ public class MonstruoIA : MonoBehaviour
             return;
 
         bool llegoAlDestino =
-            agente.hasPath &&
-            agente.remainingDistance <= agente.stoppingDistance + 0.2f;
-
-        bool caminoInvalido =
             !agente.hasPath ||
-            agente.pathStatus != NavMeshPathStatus.PathComplete;
+            agente.remainingDistance <= agente.stoppingDistance + 0.4f;
 
-        if (llegoAlDestino || caminoInvalido)
+        if (llegoAlDestino)
         {
             ElegirDestinoPatrulla();
         }
@@ -113,80 +140,70 @@ public class MonstruoIA : MonoBehaviour
 
     private void ElegirDestinoPatrulla()
     {
-        if (puntosPatrullaje == null ||
-            puntosPatrullaje.Length == 0)
+        if (agente == null || !agente.isOnNavMesh)
             return;
 
-        Transform[] puntosDisponibles =
-            new Transform[puntosPatrullaje.Length];
+        Vector3 destinoElegido = Vector3.zero;
+        bool destinoValido = false;
 
-        int cantidadDisponibles = 0;
-
-        // Buscar los puntos que tengan un camino completo.
-        foreach (Transform punto in puntosPatrullaje)
+        // 1. Probar waypoints asignados
+        if (puntosPatrullaje != null && puntosPatrullaje.Length > 0)
         {
-            if (punto == null)
-                continue;
-
-            bool existeCamino = agente.CalculatePath(
-                punto.position,
-                caminoTemporal
-            );
-
-            if (existeCamino &&
-                caminoTemporal.status == NavMeshPathStatus.PathComplete)
+            List<Vector3> destinosValidos = new List<Vector3>();
+            for (int i = 0; i < puntosPatrullaje.Length; i++)
             {
-                puntosDisponibles[cantidadDisponibles] = punto;
-                cantidadDisponibles++;
+                Transform punto = puntosPatrullaje[i];
+                if (punto == null) continue;
+                if (ultimoPuntoSeleccionado != null && punto == ultimoPuntoSeleccionado && puntosPatrullaje.Length > 1)
+                    continue;
+
+                if (NavMesh.SamplePosition(punto.position, out NavMeshHit hit, 8f, NavMesh.AllAreas))
+                {
+                    destinosValidos.Add(hit.position);
+                }
+            }
+
+            if (destinosValidos.Count > 0)
+            {
+                destinoElegido = destinosValidos[Random.Range(0, destinosValidos.Count)];
+                destinoValido = true;
             }
         }
 
-        // No hay destinos accesibles.
-        if (cantidadDisponibles == 0)
+        // 2. Si no hay waypoints o no están en el NavMesh, patrullar a lo largo de la carretera
+        if (!destinoValido)
         {
-            agente.isStopped = true;
-            siguienteIntentoPatrulla = Time.time + 1f;
-            return;
-        }
+            float randomZ = Random.Range(18f, 135f);
+            float randomX = Random.Range(-4f, 4f);
+            Vector3 randomPoint = new Vector3(randomX, 0.15f, randomZ);
 
-        // Construir una lista sin el último punto visitado.
-        Transform[] alternativas =
-            new Transform[cantidadDisponibles];
-
-        int cantidadAlternativas = 0;
-
-        for (int i = 0; i < cantidadDisponibles; i++)
-        {
-            if (puntosDisponibles[i] != ultimoPuntoSeleccionado)
+            if (NavMesh.SamplePosition(randomPoint, out NavMeshHit roadHit, 15f, NavMesh.AllAreas))
             {
-                alternativas[cantidadAlternativas] =
-                    puntosDisponibles[i];
-
-                cantidadAlternativas++;
+                destinoElegido = roadHit.position;
+                destinoValido = true;
+            }
+            else
+            {
+                Vector3 randomCircle = transform.position + Random.insideUnitSphere * 15f;
+                if (NavMesh.SamplePosition(randomCircle, out NavMeshHit circleHit, 15f, NavMesh.AllAreas))
+                {
+                    destinoElegido = circleHit.position;
+                    destinoValido = true;
+                }
             }
         }
 
-        // Si no hay alternativas, se permite repetir el último punto.
-        Transform destino;
-
-        if (cantidadAlternativas > 0)
+        if (destinoValido)
         {
-            int indice = Random.Range(0, cantidadAlternativas);
-            destino = alternativas[indice];
+            agente.isStopped = false;
+            agente.speed = velocidadPatrulla;
+            agente.SetDestination(destinoElegido);
+            siguienteIntentoPatrulla = Time.time + 1.2f;
         }
         else
         {
-            destino = puntosDisponibles[0];
+            siguienteIntentoPatrulla = Time.time + 1.0f;
         }
-
-        // Guardar el último punto seleccionado.
-        ultimoPuntoSeleccionado = destino;
-
-        agente.isStopped = false;
-        agente.speed = velocidadPatrulla;
-        agente.SetDestination(destino.position);
-
-        siguienteIntentoPatrulla = Time.time + 0.5f;
     }
 
 
@@ -317,6 +334,9 @@ public class MonstruoIA : MonoBehaviour
         capturado = true;
         estadoActual = Estado.Capturando;
 
+        if (audioEnemy != null)
+            audioEnemy.Stop();
+
         agente.isStopped = true;
         agente.ResetPath();
         agente.enabled = false;
@@ -342,5 +362,51 @@ public class MonstruoIA : MonoBehaviour
 
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, distanciaCaptura);
+    }
+
+    private void ActualizarAudioMovimiento()
+    {
+        if (audioEnemy == null)
+            return;
+
+        // Si el monstruo está detenido, no reproducir pasos.
+        if (capturado ||
+            agente == null ||
+            !agente.enabled ||
+            !agente.isOnNavMesh ||
+            agente.isStopped ||
+            agente.velocity.sqrMagnitude < 0.04f)
+        {
+            if (audioEnemy.isPlaying)
+                audioEnemy.Stop();
+
+            return;
+        }
+
+        // Seleccionar el sonido dependiendo del estado.
+        AudioClip sonidoDeseado =
+            estadoActual == Estado.Persiguiendo
+            ? runEnemy
+            : walkEnemy;
+
+        if (sonidoDeseado == null)
+        {
+            audioEnemy.Stop();
+            return;
+        }
+
+        // Cambiar el sonido solamente cuando sea necesario.
+        if (audioEnemy.clip != sonidoDeseado)
+        {
+            audioEnemy.Stop();
+
+            audioEnemy.clip = sonidoDeseado;
+            audioEnemy.loop = true;
+            audioEnemy.Play();
+        }
+        else if (!audioEnemy.isPlaying)
+        {
+            audioEnemy.Play();
+        }
     }
 }

@@ -23,11 +23,21 @@ public static class Level2Bootstrap
 
     private static bool EsNivel2(Scene escena)
     {
-        if (escena.name == EscenaNivel2)
+        // Si la escena es Level3, Level1 o MainMenu, bajo ninguna circunstancia debe ser Nivel 2
+        if (escena.name == "Level3" || escena.name.Contains("Level3") || (!string.IsNullOrEmpty(escena.path) && escena.path.Contains("Level3")))
+            return false;
+
+        if (escena.name.Contains("Level1") || (!string.IsNullOrEmpty(escena.path) && escena.path.Contains("Level1")) || escena.name.Contains("MainMenu") || (!string.IsNullOrEmpty(escena.path) && escena.path.Contains("MainMenu")))
+            return false;
+
+        if (escena.name == EscenaNivel2 || (!string.IsNullOrEmpty(escena.path) && escena.path.Contains("Level2")))
             return true;
 
         foreach (GameObject raiz in escena.GetRootGameObjects())
         {
+            if (raiz.GetComponentInChildren<Level3Controller>(true) != null)
+                return false;
+
             if (raiz.GetComponentInChildren<CarEscapeController>(true) != null)
                 return true;
         }

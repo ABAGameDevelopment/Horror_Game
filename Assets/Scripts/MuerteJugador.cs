@@ -1,5 +1,5 @@
-
 using System.Collections;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.InputSystem;
@@ -12,10 +12,13 @@ public class MuerteJugador : MonoBehaviour
     [SerializeField] private PlayerInput playerInput;
     [SerializeField] private CharacterController characterController;
     [SerializeField] private Transform camaraJugador;
+    [SerializeField] private PasosJugador pasosJugador;
 
     [Header("Screamer")]
     [SerializeField] private AudioSource audioScreamer;
     [SerializeField] private AudioClip sonidoScreamer;
+    [SerializeField] private AudioSource audioMusicaScreamer;
+    [SerializeField] private AudioClip musicaScreamer;
     [SerializeField] private float duracionScreamer = 2.5f;
 
     [SerializeField]
@@ -68,13 +71,48 @@ public class MuerteJugador : MonoBehaviour
         StartCoroutine(SecuenciaMuerte(monstruo));
     }
 
+    public void CancelarYBloquearMuerte()
+    {
+        muerteIniciada = true;
+
+        StopAllCoroutines();
+
+        if (audioScreamer != null)
+            audioScreamer.Stop();
+
+        if (audioMusicaScreamer != null)
+            audioMusicaScreamer.Stop();
+
+        if (panelMuerte != null)
+            panelMuerte.SetActive(false);
+
+        if (panelOscuro != null)
+        {
+            Color col = panelOscuro.color;
+            col.a = 0f;
+            panelOscuro.color = col;
+            panelOscuro.gameObject.SetActive(false);
+        }
+
+        enabled = false;
+    }
+
     private IEnumerator SecuenciaMuerte(Transform monstruo)
     {
-        // Guardar la transformaci√≥n original del monstruo.
+        // Guardar la transformacion original del monstruo.
         monstruoOriginalParent = monstruo.parent;
         posicionOriginalMonstruo = monstruo.position;
         rotacionOriginalMonstruo = monstruo.rotation;
         escalaOriginalMonstruo = monstruo.localScale;
+
+        // Detener los sonidos de los pasos.
+        if (pasosJugador != null)
+            pasosJugador.DetenerPasos();
+
+        // Detener audio previo del monstruo para que resalte el grito
+        AudioSource audioMonstruo = monstruo.GetComponent<AudioSource>();
+        if (audioMonstruo != null)
+            audioMonstruo.Stop();
 
         // Bloquear los controles del jugador.
         if (playerInput != null)
@@ -92,7 +130,15 @@ public class MuerteJugador : MonoBehaviour
         foreach (Collider col in colliders)
             col.enabled = false;
 
-        // Colocar al monstruo delante de la c√°mara.
+        // Asegurar referencia a la camara del jugador
+        if (camaraJugador == null)
+        {
+            Camera cam = Camera.main;
+            if (cam != null) camaraJugador = cam.transform;
+            else if (playerController != null) camaraJugador = playerController.transform.Find("Camera");
+        }
+
+        // Colocar al monstruo delante de la camara.
         monstruo.SetParent(camaraJugador, false);
 
         monstruo.localPosition = posicionScreamer;
@@ -101,8 +147,73 @@ public class MuerteJugador : MonoBehaviour
         // Reproducir el sonido.
         if (audioScreamer != null && sonidoScreamer != null)
             audioScreamer.PlayOneShot(sonidoScreamer);
+        if (audioMusicaScreamer != null && musicaScreamer != null)
+            audioMusicaScreamer.PlayOneShot(musicaScreamer);
 
-        // Animaci√≥n del ataque.
+        // ILUMINACION INTENSA DIRECTA AL ROSTRO DEL MONSTRUO
+        GameObject luzScreamerObj = new GameObject("LuzRostroScreamer");
+        if (camaraJugador != null)
+        {
+            luzScreamerObj.transform.SetParent(camaraJugador, false);
+            luzScreamerObj.transform.localPosition = new Vector3(0f, 0f, 0.15f);
+            luzScreamerObj.transform.localRotation = Quaternion.identity;
+        }
+        else
+        {
+            luzScreamerObj.transform.SetParent(monstruo, false);
+            luzScreamerObj.transform.localPosition = new Vector3(0f, 1.4f, 0.5f);
+        }
+
+        Light luzSpot = luzScreamerObj.AddComponent<Light>();
+        luzSpot.type = LightType.Spot;
+        luzSpot.spotAngle = 85f;
+        luzSpot.innerSpotAngle = 45f;
+        luzSpot.color = new Color(1f, 0.96f, 0.92f); // Luz blanca brillante
+        luzSpot.intensity = 8.5f;
+        luzSpot.range = 6.0f;
+        luzSpot.shadows = LightShadows.None;
+
+        GameObject luzFillObj = new GameObject("LuzRellenoScreamer");
+        luzFillObj.transform.SetParent(monstruo, false);
+        luzFillObj.transform.localPosition = new Vector3(0f, 1.2f, 0.5f);
+        Light luzFill = luzFillObj.AddComponent<Light>();
+        luzFill.type = LightType.Point;
+        luzFill.color = new Color(1f, 0.93f, 0.88f);
+        luzFill.intensity = 6.0f;
+        luzFill.range = 5.0f;
+        luzFill.shadows = LightShadows.None;
+
+        // SONIDO DEL SCREAMER ASEGURADO (EN 2D Y A MAXIMO VOLUMEN)
+        if (sonidoScreamer == null)
+        {
+#if UNITY_EDITOR
+            sonidoScreamer = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audios/Screamer.mp3");
+#endif
+            if (sonidoScreamer == null)
+            {
+                sonidoScreamer = Resources.FindObjectsOfTypeAll<AudioClip>().FirstOrDefault(c => c.name.ToLower().Contains("screamer"));
+            }
+        }
+
+        if (audioScreamer == null)
+        {
+            if (camaraJugador != null)
+                audioScreamer = camaraJugador.GetComponent<AudioSource>();
+            if (audioScreamer == null)
+                audioScreamer = gameObject.AddComponent<AudioSource>();
+        }
+
+        if (audioScreamer != null)
+        {
+            audioScreamer.spatialBlend = 0f; // 2D Stereo directo
+            audioScreamer.volume = 1f;
+            if (sonidoScreamer != null)
+            {
+                audioScreamer.PlayOneShot(sonidoScreamer);
+            }
+        }
+
+        // Animacion del ataque.
         float tiempo = 0f;
 
         Vector3 posicionInicial = posicionScreamer;
@@ -131,12 +242,37 @@ public class MuerteJugador : MonoBehaviour
             yield return null;
         }
 
+        // Eliminar las luces del screamer antes de oscurecer
+        if (luzScreamerObj != null) Destroy(luzScreamerObj);
+        if (luzFillObj != null) Destroy(luzFillObj);
+
         // Comenzar a oscurecer la pantalla.
         yield return StartCoroutine(DesvanecerPantalla());
 
-        // Mostrar pantalla de derrota.
-        if (panelMuerte != null)
-            panelMuerte.SetActive(true);
+        // NIVEL 2: utilizar el sistema de Game Over.
+        if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "Level2")
+        {
+            if (LevelStateManager.Instance != null)
+            {
+                LevelStateManager.Instance.GameOver("Has caÌdo en la oscuridad.");
+            }
+            else
+            {
+                Debug.LogError("[MuerteJugador] No se encontrÛ LevelStateManager en Nivel 2.");
+            }
+        }
+        // NIVEL 3: utilizar su pantalla de muerte original.
+        else
+        {
+            if (panelMuerte != null)
+            {
+                panelMuerte.SetActive(true);
+            }
+            else
+            {
+                Debug.LogError("[MuerteJugador] No se ha asignado PanelMuerte en Nivel 3.");
+            }
+        }
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;

@@ -52,10 +52,11 @@ public class Level3HUDController : MonoBehaviour
         Canvas canvas = RuntimeUI.CrearCanvas("HUD_Nivel3", 10);
         vignetaPantalla = RuntimeUI.CrearVigneta(canvas.transform, 0.38f);
 
-        // PANEL ESTADO VITAL (Superior Izquierda)
+        // PANEL ESTADO VITAL (Desactivado a petición del usuario)
         Image panelSalud = RuntimeUI.CrearPanelMarcoTerror(canvas.transform, "PanelSalud", new Vector2(400f, 135f), RuntimeUI.ColorPanelHud);
         panelSalud.raycastTarget = false;
         RuntimeUI.Anclar(panelSalud.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -24f), new Vector2(400f, 135f));
+        panelSalud.gameObject.SetActive(false);
 
         TextMeshProUGUI titSalud = RuntimeUI.CrearTitulo(panelSalud.transform, "TituloSalud", "ESTADO VITAL", 22f, TextAlignmentOptions.Left, RuntimeUI.ColorRojoBrillante);
         RuntimeUI.Anclar(titSalud.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -12f), new Vector2(360f, 26f));
@@ -185,7 +186,7 @@ public class Level3HUDController : MonoBehaviour
         if (saludJugador == null) return;
 
         float fraccion = saludJugador.SaludNormalizada;
-        textSalud.text = Mathf.CeilToInt(fraccion * 100f) + "%";
+        if (textSalud != null) textSalud.text = Mathf.CeilToInt(fraccion * 100f) + "%";
 
         if (rellenoSalud != null)
         {

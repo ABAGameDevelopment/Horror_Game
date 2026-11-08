@@ -10,6 +10,26 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float gravity = -20f;
     [SerializeField] private float jumpHeight = 1.2f;
 
+    [Header("Sprint")]
+    [SerializeField] private float sprintSpeed = 8f;
+    [SerializeField] private float sprintDuration = 4f;
+    [SerializeField] private float sprintRegeneration = 5f;
+    [SerializeField] private float sprintRecoveryDelay = 5f;
+
+    private float recoveryTimer;
+    private bool sprintBloqueado;
+
+    private bool sprintInputHeld;
+    private bool sprinting;
+    private float sprintEnergy = 1f;
+
+    public float SprintEnergy => sprintEnergy;
+    public bool IsSprinting => sprinting;
+    public bool EstaMoviendose { get; private set; }
+    public bool EstaCorriendo { get; private set; }
+
+    public event Action<float> SprintEnergyChanged;
+
     [Header("Look")]
     [SerializeField] private Transform playerCamera;
     [SerializeField] private float mouseSensitivity = 0.2f;
@@ -19,16 +39,28 @@ public class PlayerController : MonoBehaviour
     [Header("Linterna")]
     [SerializeField] private Light luzLinterna;
     [SerializeField] private bool linternaEncendida = true;
+    [SerializeField] private AudioSource audioLinterna;
+    [SerializeField] private AudioClip sonidoLinterna;
 
     [Header("Intro")]
     [SerializeField] private IntroNivel introNivel;
 
     public event Action LinternaEncendidaPorPrimeraVez;
 
-    private bool EnIntro =>
-        introNivel != null &&
-        introNivel.isActiveAndEnabled &&
-        !introNivel.IntroduccionTerminada;
+    private bool EnIntro
+    {
+        get
+        {
+            // La cinematica de IntroNivel solo pertenece al Nivel 1 (Universidad)
+            string escena = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+            if (escena != "University" && escena != "Level1")
+                return false;
+
+            return introNivel != null &&
+                   introNivel.isActiveAndEnabled &&
+                   !introNivel.IntroduccionTerminada;
+        }
+    }
 
     private bool yaSeNotificoLinternaEncendida;
 
@@ -42,12 +74,66 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private int maxJumps = 2;
     private int jumpsUsed = 0;
 
+    [Header("Controles Móviles")]
+    [SerializeField] private bool usarControlesMoviles = true;
+    [SerializeField] private bool simularEnEditor = true;
+
+    private Vector2 virtualMoveInput;
+    private Vector2 virtualLookInput;
+    private bool virtualSprintHeld;
+
+    public bool UsarControlesMoviles => usarControlesMoviles;
+    public bool SimularEnEditor => simularEnEditor;
+    public bool LinternaEncendida => linternaEncendida;
+
+    public void SetVirtualMoveInput(Vector2 input)
+    {
+        virtualMoveInput = input;
+    }
+
+    public void SetVirtualLookInput(Vector2 delta)
+    {
+        virtualLookInput = delta;
+    }
+
+    public void SetVirtualSprint(bool held)
+    {
+        virtualSprintHeld = held;
+    }
+
+    public void EjecutarSalto()
+    {
+        if (EnIntro || (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota)) return;
+        if (CarEscapeController.Instance != null && CarEscapeController.Instance.JugadorEscondido) return;
+
+        if (controller != null && (controller.isGrounded || jumpsUsed < maxJumps))
+        {
+            verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            jumpsUsed++;
+        }
+    }
+
+    public void AlternarLinterna()
+    {
+        if (EnIntro || (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota)) return;
+        ToggleLinterna();
+    }
+
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
 
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        bool esDispositivoMovil = Application.isMobilePlatform || SystemInfo.deviceType == DeviceType.Handheld;
+        if (usarControlesMoviles && (esDispositivoMovil || simularEnEditor))
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+        else
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
 
         // Sincronizar el estado inicial de la linterna.
         if (luzLinterna != null)
@@ -56,23 +142,52 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    private void Start()
+    {
+        bool esDispositivoMovil = Application.isMobilePlatform || SystemInfo.deviceType == DeviceType.Handheld;
+        if (usarControlesMoviles && (esDispositivoMovil || simularEnEditor))
+        {
+            if (MobileControlsUI.Instance == null && FindAnyObjectByType<MobileControlsUI>() == null)
+            {
+                GameObject mobileCanvasGO = new GameObject("MobileControlsCanvas");
+                mobileCanvasGO.AddComponent<MobileControlsUI>();
+            }
+        }
+    }
+
     private void Update()
     {
-        if (EnIntro)
+        bool esMovilOEditor = Application.isMobilePlatform || SystemInfo.deviceType == DeviceType.Handheld || simularEnEditor;
+        if (usarControlesMoviles && esMovilOEditor)
+        {
+            if (Cursor.lockState != CursorLockMode.None)
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+        }
+
+        if (EnIntro || (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota))
         {
             moveInput = Vector2.zero;
             lookInput = Vector2.zero;
+            sprinting = false;
+
+            ActualizarEnergiaSprint();
+            AplicarGravedadSinMovimiento();
             return;
         }
 
         HandleMovement();
         HandleLook();
+
+        ActualizarEnergiaSprint();
     }
 
     // Movimiento
     public void OnMove(InputValue value)
     {
-        if (EnIntro)
+        if (EnIntro || (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota))
         {
             moveInput = Vector2.zero;
             return;
@@ -84,7 +199,7 @@ public class PlayerController : MonoBehaviour
     // Cámara
     public void OnLook(InputValue value)
     {
-        if (EnIntro)
+        if (EnIntro || (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota))
         {
             lookInput = Vector2.zero;
             return;
@@ -96,7 +211,7 @@ public class PlayerController : MonoBehaviour
     // Salto
     public void OnJump(InputValue value)
     {
-        if (EnIntro) return;
+        if (EnIntro || (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota)) return;
         if (CarEscapeController.Instance != null && CarEscapeController.Instance.JugadorEscondido) return;
         if (!value.isPressed) return;
 
@@ -107,10 +222,16 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    // Sprint: Shift izquierdo o LS del control Xbox.
+    public void OnRun(InputValue value)
+    {
+        sprintInputHeld = value.isPressed;
+    }
+
     // Acción de linterna: F o botón del control Xbox.
     public void OnLight(InputValue value)
     {
-        if (EnIntro) return;
+        if (EnIntro || (NotasUI.Instance != null && NotasUI.Instance.MostrandoNota)) return;
         if (!value.isPressed) return;
 
         ToggleLinterna();
@@ -127,6 +248,9 @@ public class PlayerController : MonoBehaviour
 
         linternaEncendida = !linternaEncendida;
         luzLinterna.enabled = linternaEncendida;
+
+        if (audioLinterna != null && sonidoLinterna != null)
+            audioLinterna.PlayOneShot(sonidoLinterna);
 
         Debug.Log(linternaEncendida
             ? "Linterna encendida."
@@ -152,9 +276,18 @@ public class PlayerController : MonoBehaviour
     // Movimiento del jugador.
     private void HandleMovement()
     {
-        if (controller == null) return;
-        if (CarEscapeController.Instance != null && CarEscapeController.Instance.JugadorEscondido) return;
+        if (controller == null)
+        {
+            controller = GetComponent<CharacterController>();
+            if (controller == null) return;
+        }
 
+        if (CarEscapeController.Instance != null &&
+    CarEscapeController.Instance.JugadorEscondido)
+        {
+            sprinting = false;
+            return;
+        }
         if (controller.isGrounded && verticalVelocity < 0)
         {
             verticalVelocity = -2f;
@@ -163,6 +296,11 @@ public class PlayerController : MonoBehaviour
 
         Vector2 effectiveMove = moveInput;
 
+        // Si hay entrada de controles virtuales (joystick o flechas)
+        if (virtualMoveInput.sqrMagnitude > 0.001f)
+        {
+            effectiveMove = virtualMoveInput;
+        }
         // Respaldo para teclado.
         if (effectiveMove.sqrMagnitude < 0.01f && Keyboard.current != null)
         {
@@ -200,10 +338,25 @@ public class PlayerController : MonoBehaviour
         }
 
         Vector3 movement =
-            transform.right * effectiveMove.x +
-            transform.forward * effectiveMove.y;
+    transform.right * effectiveMove.x +
+    transform.forward * effectiveMove.y;
 
-        movement *= speed;
+        bool tieneMovimiento = effectiveMove.sqrMagnitude > 0.01f;
+
+        EstaMoviendose = tieneMovimiento;
+
+        sprinting =
+            (sprintInputHeld || virtualSprintHeld) &&
+            tieneMovimiento &&
+            sprintEnergy > 0.001f &&
+            !sprintBloqueado;
+
+        EstaCorriendo = sprinting;
+
+        // Aplicar la velocidad correspondiente.
+        float velocidadActual = sprinting ? sprintSpeed : speed;
+
+        movement *= velocidadActual;
 
         verticalVelocity += gravity * Time.deltaTime;
         movement.y = verticalVelocity;
@@ -216,8 +369,40 @@ public class PlayerController : MonoBehaviour
     {
         Vector2 effectiveLook = lookInput;
 
+        if (virtualLookInput.sqrMagnitude > 0.00001f)
+        {
+            effectiveLook = virtualLookInput;
+            virtualLookInput = Vector2.zero;
+
+            float camX = effectiveLook.x;
+            float camY = effectiveLook.y;
+
+            transform.Rotate(Vector3.up * camX);
+
+            if (playerCamera != null)
+            {
+                cameraPitch -= camY;
+
+                float minPitch = -maxLookAngle;
+                float maxPitch = maxLookAngle;
+
+                if (CarEscapeController.Instance != null && CarEscapeController.Instance.JugadorEscondido)
+                {
+                    minPitch = -22f;
+                    maxPitch = 22f;
+                }
+
+                cameraPitch = Mathf.Clamp(cameraPitch, minPitch, maxPitch);
+                playerCamera.localRotation = Quaternion.Euler(cameraPitch, 0f, 0f);
+            }
+            return;
+        }
+
+        bool punteroSobreUI = UnityEngine.EventSystems.EventSystem.current != null &&
+                              UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
+
         if (effectiveLook.sqrMagnitude < 0.001f &&
-            Mouse.current != null)
+            Mouse.current != null && !punteroSobreUI)
         {
             effectiveLook = Mouse.current.delta.ReadValue();
         }
@@ -266,5 +451,75 @@ public class PlayerController : MonoBehaviour
             playerCamera.localRotation =
                 Quaternion.Euler(cameraPitch, 0f, 0f);
         }
+    }
+
+    private void AplicarGravedadSinMovimiento()
+    {
+        if (controller == null) return;
+
+        if (controller.isGrounded && verticalVelocity < 0)
+        {
+            verticalVelocity = -2f;
+            jumpsUsed = 0;
+        }
+        else
+        {
+            verticalVelocity += gravity * Time.deltaTime;
+        }
+
+        controller.Move(Vector3.up * verticalVelocity * Time.deltaTime);
+    }
+
+    private void ActualizarEnergiaSprint()
+    {
+        // Si estamos corriendo, consumir energía.
+        if (sprinting)
+        {
+            sprintEnergy -= Time.deltaTime / sprintDuration;
+
+            // Reiniciar el tiempo de recuperación.
+            recoveryTimer = 0f;
+
+            // Si se agota la energía, bloquear el sprint.
+            if (sprintEnergy <= 0f)
+            {
+                sprintEnergy = 0f;
+
+                sprinting = false;
+                sprintInputHeld = false;
+
+                sprintBloqueado = true;
+            }
+        }
+        else
+        {
+            // Si todavía no tenemos energía completa.
+            if (sprintEnergy < 1f)
+            {
+                recoveryTimer += Time.deltaTime;
+
+                // Esperar antes de comenzar la regeneración.
+                if (recoveryTimer >= sprintRecoveryDelay)
+                {
+                    sprintEnergy += Time.deltaTime / sprintRegeneration;
+                }
+            }
+            else
+            {
+                recoveryTimer = 0f;
+                sprintBloqueado = false;
+            }
+        }
+
+        sprintEnergy = Mathf.Clamp01(sprintEnergy);
+
+        // Actualizar la barra de energía.
+        SprintEnergyChanged?.Invoke(sprintEnergy);
+    }
+
+    private void OnDisable()
+    {
+        sprintInputHeld = false;
+        sprinting = false;
     }
 }
